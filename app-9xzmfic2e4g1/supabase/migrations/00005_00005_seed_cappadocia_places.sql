@@ -1,0 +1,19 @@
+-- NO SEED DATA: Real place_ids must be fetched from Google Places API.
+-- 
+-- The cache will self-populate on first use via the Cache MISS path in generate-itinerary.
+-- When a user requests an itinerary, the Edge Function will:
+--   1. Check places_cache for existing data
+--   2. On MISS: Fetch real place details from Google Places API
+--   3. Insert the real data into places_cache automatically
+--   4. Return the itinerary with valid place_ids and photo_references
+--
+-- This approach ensures:
+--   - No fake/invented place_ids that break map embeds
+--   - No fake photo_references that cause 404 errors
+--   - Automatic cache population with real Google data
+--   - Proper conflict handling via ON CONFLICT (place_name_normalized) DO NOTHING
+--
+-- Example of how data will be inserted by the Edge Function:
+-- INSERT INTO places_cache (place_name_normalized, place_id, name, formatted_address, lat, lng, rating, user_ratings_total, photo_reference)
+-- VALUES ('goreme open air museum', 'ChIJ...real_id', 'Göreme Open Air Museum', '...', 38.6431, 34.8347, 4.6, 15234, 'real_photo_ref')
+-- ON CONFLICT (place_name_normalized) DO NOTHING;

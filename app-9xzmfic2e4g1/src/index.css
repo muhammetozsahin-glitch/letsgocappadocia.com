@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Backgrounds - Warmer White */
+    --background: 30 20% 98%;
+    --foreground: 24 30% 10%;
+    
+    /* Card & Surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 24 30% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 30% 10%;
+    
+    /* Primary - Cappadocia Terracotta (#E36414) */
+    --primary: 24 85% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-dark: 24 85% 40%;
+    
+    /* Secondary - Deep Slate Blue for contrast (#1B263B) */
+    --secondary: 220 37% 17%;
+    --secondary-foreground: 0 0% 100%;
+    
+    /* Muted & Neutral */
+    --muted: 30 20% 94%;
+    --muted-foreground: 24 10% 45%;
+    
+    /* Accent - Golden Hour (#FFB703) */
+    --accent: 45 100% 51%;
+    --accent-foreground: 24 30% 10%;
+    
+    /* Status Colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Borders & Inputs */
+    --border: 24 20% 90%;
+    --input: 24 20% 90%;
+    --ring: 24 85% 50%;
+    
+    /* Radius - Standard but soft */
+    --radius: 0.75rem;
+
+    /* Custom Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(24 85% 50%), hsl(45 100% 51%));
+    --gradient-surface: linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
+  }
+
+  .dark {
+    /* Backgrounds - Deep Night Blue/Grey */
+    --background: 224 45% 8%;
+    --foreground: 30 20% 98%;
+    
+    /* Card & Surfaces */
+    --card: 224 45% 12%;
+    --card-foreground: 30 20% 98%;
+    --popover: 224 45% 12%;
+    --popover-foreground: 30 20% 98%;
+    
+    /* Primary - Stays consistent but slightly more vibrant */
+    --primary: 24 85% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-dark: 24 85% 45%;
+    
+    /* Secondary */
+    --secondary: 224 30% 20%;
+    --secondary-foreground: 30 20% 98%;
+    
+    /* Muted & Neutral */
+    --muted: 224 30% 15%;
+    --muted-foreground: 224 15% 70%;
+    
+    /* Accent */
+    --accent: 45 100% 60%;
+    --accent-foreground: 224 45% 8%;
+    
+    /* Status Colors */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 40%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 38%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Borders & Inputs */
+    --border: 224 30% 18%;
+    --input: 224 30% 18%;
+    --ring: 24 85% 55%;
+
+    --gradient-surface: linear-gradient(180deg, rgba(30,41,59,0.8) 0%, rgba(30,41,59,0.4) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
+  }
+}
+
+/* Custom Utilities */
+.glass {
+  @apply bg-white/10 backdrop-blur-xl border border-white/20;
+}
+
+.glass-dark {
+  @apply bg-black/20 backdrop-blur-xl border border-white/10;
+}
+
+.card-shine {
+  @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+}
+
+.cappadocia-hero {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2000');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
+}
+
+/* Smooth Transitions */
+.transition-luxury {
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
