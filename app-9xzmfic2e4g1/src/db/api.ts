@@ -120,6 +120,14 @@ const api = {
     return data;
   },
 
+  async getPlaceDetails(params: { place_id: string; name: string; category: string }) {
+    const { data, error } = await supabase.functions.invoke('get-place-details', {
+      body: params,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   getPhotoUrl(photoReference: string) {
     const { data } = supabase.storage.from('dummy').getPublicUrl('dummy'); // Just to get the base URL
     const baseUrl = data.publicUrl.split('/storage/v1')[0];
