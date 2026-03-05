@@ -14,6 +14,8 @@ export interface Place {
   start_time: string;
   end_time: string;
   notes?: string;
+  personal_tip?: string;
+  why_visit?: string;
 }
 
 export interface ItineraryDay {
@@ -22,6 +24,7 @@ export interface ItineraryDay {
   total_distance?: string;
   total_duration?: string;
   notes?: string;
+  day_story?: string;
 }
 
 export interface Trip {
@@ -114,14 +117,6 @@ const api = {
     waypoints?: string[];
   }) {
     const { data, error } = await supabase.functions.invoke('get-directions', {
-      body: params,
-    });
-    if (error) throw error;
-    return data;
-  },
-
-  async getPlaceDetails(params: { place_id: string; name: string; category: string }) {
-    const { data, error } = await supabase.functions.invoke('get-place-details', {
       body: params,
     });
     if (error) throw error;
