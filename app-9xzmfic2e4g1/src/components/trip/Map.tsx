@@ -73,23 +73,70 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
     setAdded(false);
   }, [itineraryKey]);
 
-  // ── Fetch rich details ────────────────────────────────────────────────────
-  const fetchPlaceDetail = useCallback(async (poi: SelectedPOI) => {
+  // ── Fetch rich details via Google Places API ─────────────────────────────
+  const fetchPlaceDetail = useCallback((poi: SelectedPOI) => {
+    if (!placesServiceRef.current) return;
     setDetailLoading(true);
     setPlaceDetail(null);
     setActiveTab('about');
-    try {
-      const data = await api.getPlaceDetails({
-        place_id: poi.place_id,
-        name: poi.name,
-        category: poi.category,
-      });
-      setPlaceDetail(data);
-    } catch (e) {
-      console.error('Place detail fetch error:', e);
-    } finally {
-      setDetailLoading(false);
-    }
+
+    placesServiceRef.current.getDetails(
+      {
+        placeId: poi.place_id,
+        fields: [
+          'place_id', 'name', 'editorial_summary', 'rating', 'user_ratings_total',
+          'opening_hours', 'reviews', 'types', 'formatted_address',
+        ],
+      },
+      (place, status) => {
+        setDetailLoading(false);
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
+
+        // Build why_visit from types + editorial_summary
+        const typeLabels: Record<string, string> = {
+          tourist_attraction: 'Turistik bir cazibe noktası — ziyaret değer.',
+          museum: 'Tarihi ve kültürel bir müze deneyimi sunar.',
+          restaurant: 'Yerel lezzetleri keşfetmek için harika bir mekan.',
+          park: 'Doğayla iç içe dinlenme ve yürüyüş imkânı.',
+          lodging: 'Konforlu konaklama seçeneği.',
+          natural_feature: 'Eşsiz doğal güzelliğiyle öne çıkan bir yer.',
+          church: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
+          mosque: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
+          point_of_interest: 'Bölgenin önemli ilgi noktalarından biri.',
+        };
+        const whyVisit: string[] = [];
+        if (place.editorial_summary?.overview) whyVisit.push(place.editorial_summary.overview);
+        for (const t of (place.types || [])) {
+          const label = typeLabels[t];
+          if (label && !whyVisit.includes(label)) { whyVisit.push(label); break; }
+        }
+
+        // Build tips from top-rated reviews
+        const tips: string[] = (place.reviews || [])
+          .filter(r => r.rating >= 4 && r.text?.length > 30)
+          .slice(0, 2)
+          .map(r => `"${r.text.slice(0, 120).trim()}…"`);
+
+        const detail: PlaceDetail = {
+          place_id: place.place_id || poi.place_id,
+          name: place.name || poi.name,
+          summary: place.editorial_summary?.overview || '',
+          rating: place.rating,
+          total_ratings: place.user_ratings_total,
+          is_open_now: place.opening_hours?.isOpen?.() ?? null,
+          opening_hours: place.opening_hours?.weekday_text || null,
+          why_visit: whyVisit,
+          tips,
+          reviews: (place.reviews || []).map(r => ({
+            author: r.author_name,
+            rating: r.rating,
+            text: r.text,
+            time: r.relative_time_description,
+          })),
+        };
+        setPlaceDetail(detail);
+      }
+    );
   }, []);
 
   // ── Handle add ────────────────────────────────────────────────────────────
@@ -147,43 +194,41 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           placesServiceRef.current = new google.maps.places.PlacesService(map);
 
           // ── POI tıklama ───────────────────────────────────────────────────
-          if (onAddPlace) {
-            map.addListener('click', (e: google.maps.MapMouseEvent & { placeId?: string }) => {
-              if (!e.placeId) return;
-              e.stop?.();
+          // POI tiklama - her zaman calisir, detay panelini acar
+          map.addListener('click', (e: google.maps.MapMouseEvent & { placeId?: string }) => {
+            if (!e.placeId) return;
+            e.stop?.();
 
-              const placeId = e.placeId;
-              setAdded(false);
+            const placeId = e.placeId;
+            setAdded(false);
 
-              // Önce temel bilgiyi Google'dan çek, sonra panel aç
-              placesServiceRef.current?.getDetails(
-                {
-                  placeId,
-                  fields: ['place_id', 'name', 'formatted_address', 'geometry', 'rating', 'photos', 'types'],
-                },
-                (place, status) => {
-                  if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) return;
+            placesServiceRef.current?.getDetails(
+              {
+                placeId,
+                fields: ['place_id', 'name', 'formatted_address', 'geometry', 'rating', 'photos', 'types'],
+              },
+              (place, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) return;
 
-                  const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 600 }) || '';
-                  const category = (place.types?.[0] || 'point_of_interest').replace(/_/g, ' ');
+                const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 600 }) || '';
+                const category = (place.types?.[0] || 'point_of_interest').replace(/_/g, ' ');
 
-                  const poi: SelectedPOI = {
-                    place_id: place.place_id || placeId,
-                    name: place.name || '',
-                    lat: place.geometry.location.lat(),
-                    lng: place.geometry.location.lng(),
-                    photoUrl,
-                    category,
-                    formatted_address: place.formatted_address || '',
-                    rating: place.rating,
-                  };
+                const poi: SelectedPOI = {
+                  place_id: place.place_id || placeId,
+                  name: place.name || '',
+                  lat: place.geometry.location.lat(),
+                  lng: place.geometry.location.lng(),
+                  photoUrl,
+                  category,
+                  formatted_address: place.formatted_address || '',
+                  rating: place.rating,
+                };
 
-                  setSelectedPOI(poi);
-                  fetchPlaceDetail(poi);
-                }
-              );
-            });
-          }
+                setSelectedPOI(poi);
+                fetchPlaceDetail(poi);
+              }
+            );
+          });
 
           setGoogleMap(map);
         }
