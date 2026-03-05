@@ -160,6 +160,16 @@ function DaySection({
         )}
       </div>
 
+      {/* Day story — AI hikayesi */}
+      {day.day_story && (
+        <div className="mx-1 flex items-start gap-2.5 px-3 py-2.5 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 rounded-xl">
+          <Wand2 className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+          <p className="text-[12px] text-orange-800 font-medium leading-relaxed italic">
+            {day.day_story}
+          </p>
+        </div>
+      )}
+
       {/* Empty state */}
       {day.items.length === 0 && (
         <div className="mx-2 py-12 flex flex-col items-center gap-3 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
@@ -435,6 +445,22 @@ function SortableItem({
           {!isEditingNote && item.notes && (
             <div className="mt-2.5 p-2 bg-orange-50 rounded-xl border-l-2 border-orange-500">
               <p className="text-[11px] font-medium italic text-orange-800">{item.notes}</p>
+            </div>
+          )}
+
+          {/* why_visit — neden bu yer */}
+          {item.why_visit && (
+            <div className="mt-2 flex items-start gap-2 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+              <MapPin className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-blue-700 font-medium leading-snug">{item.why_visit}</p>
+            </div>
+          )}
+
+          {/* personal_tip — kişisel ipucu */}
+          {item.personal_tip && (
+            <div className="mt-1.5 flex items-start gap-2 px-2 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+              <Star className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-700 font-medium leading-snug">{item.personal_tip}</p>
             </div>
           )}
         </CardContent>
