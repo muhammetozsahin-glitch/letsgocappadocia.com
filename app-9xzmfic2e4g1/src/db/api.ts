@@ -127,8 +127,6 @@ const api = {
     return `${baseUrl}/functions/v1/get-place-photo?photo_reference=${photoReference}`;
   },
 
-  // ── Public Guides ──────────────────────────────────────────────────────────
-
   async publishGuide(tripId: string, opts: {
     guide_intro?: string;
     guide_tips?: string[];
@@ -197,14 +195,12 @@ const api = {
   async toggleLike(tripId: string): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Giriş gerekli');
-
     const { data: existing } = await supabase
       .from('guide_likes')
       .select('user_id')
       .eq('user_id', user.id)
       .eq('trip_id', tripId)
       .maybeSingle();
-
     if (existing) {
       await supabase.from('guide_likes').delete().eq('user_id', user.id).eq('trip_id', tripId);
       return false;
@@ -221,7 +217,7 @@ const api = {
       .from('guide_likes')
       .select('trip_id')
       .eq('user_id', user.id);
-    return (data || []).map(r => r.trip_id);
+    return (data || []).map((r: any) => r.trip_id);
   },
 };
 
