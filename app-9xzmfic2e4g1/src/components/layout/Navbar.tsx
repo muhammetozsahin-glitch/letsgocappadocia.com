@@ -66,6 +66,12 @@ export function Navbar() {
                 Planla
               </Link>
               <Link
+                to="/rehberler"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+              >
+                Rehberler
+              </Link>
+              <Link
                 to="/account"
                 className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
               >
