@@ -29,8 +29,8 @@ export default function GuidesPage() {
       ]);
       setGuides(data);
       setMyLikes(new Set(likes));
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('Rehberler yüklenemedi:', err);
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,6 @@ export default function GuidesPage() {
                   <Link to={`/rehber/${guide.id}`} className="group block">
                     <div className="bg-white rounded-3xl overflow-hidden border-2 border-gray-50 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
 
-                      {/* Cover image */}
                       <div className="relative h-52 overflow-hidden bg-gray-100">
                         <img
                           src={getGuidePhoto(guide)}
@@ -152,7 +151,6 @@ export default function GuidesPage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-                        {/* Stats overlay */}
                         <div className="absolute top-3 right-3 flex gap-1.5">
                           <Badge className="bg-black/40 text-white border-0 backdrop-blur-sm text-[9px] font-black px-2">
                             {getDayCount(guide)} GÜN
@@ -162,7 +160,6 @@ export default function GuidesPage() {
                           </Badge>
                         </div>
 
-                        {/* Like button */}
                         <button
                           onClick={(e) => handleLike(e, guide.id)}
                           className={cn(
@@ -175,7 +172,6 @@ export default function GuidesPage() {
                           <Heart className={cn('h-4 w-4', myLikes.has(guide.id) && 'fill-current')} />
                         </button>
 
-                        {/* Title */}
                         <div className="absolute bottom-3 left-4 right-4">
                           <h3 className="text-base font-black text-white leading-tight line-clamp-2 group-hover:text-orange-300 transition-colors">
                             {guide.title}
@@ -183,7 +179,6 @@ export default function GuidesPage() {
                         </div>
                       </div>
 
-                      {/* Body */}
                       <div className="p-4 space-y-3">
                         {guide.guide_intro && (
                           <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
@@ -214,9 +209,6 @@ export default function GuidesPage() {
                               <Eye className="h-3 w-3" />
                               {guide.views_count || 0}
                             </span>
-                            {guide.profiles?.full_name && (
-                              <span className="text-gray-300">{guide.profiles.full_name}</span>
-                            )}
                           </div>
                           <span className="flex items-center gap-1 text-[10px] font-black text-orange-600 group-hover:gap-2 transition-all">
                             İncele <ArrowRight className="h-3 w-3" />
