@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { Trip, Place, ItineraryDay } from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
 import {
   Loader2, Share2, MapPin, Trash2,
   Plus, LayoutGrid, RotateCcw, RotateCw,
-  CheckCircle2, Clock, Navigation
+  CheckCircle2, Clock, Navigation, Globe, GlobeLock, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,13 @@ export default function TripDetailsPage() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Publish modal
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [guideIntro, setGuideIntro] = useState('');
+  const [guideTips, setGuideTips] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
+
   // History operates on the full itinerary object
   const history = useUndoRedo<Trip['itinerary'] | null>(null);
 
@@ -79,6 +86,9 @@ export default function TripDetailsPage() {
         if (data) {
           setTrip(data);
           history.push(data.itinerary);
+          setIsPublic(!!(data as any).is_public);
+          setGuideIntro((data as any).guide_intro || '');
+          setGuideTips(((data as any).guide_tips || []).join('\n'));
         } else {
           toast.error('Gezi bulunamadı');
           navigate('/explore');
@@ -226,6 +236,33 @@ export default function TripDetailsPage() {
     }
   };
 
+  const handlePublish = async () => {
+    if (!trip) return;
+    setPublishLoading(true);
+    try {
+      const tips = guideTips.split('\n').map(t => t.trim()).filter(Boolean);
+      await api.publishGuide(trip.id, { guide_intro: guideIntro, guide_tips: tips });
+      setIsPublic(true);
+      setShowPublishModal(false);
+      toast.success('Rehber yayınlandı! Toplulukta görünüyor.');
+    } catch {
+      toast.error('Yayınlama başarısız');
+    } finally {
+      setPublishLoading(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!trip) return;
+    try {
+      await api.unpublishGuide(trip.id);
+      setIsPublic(false);
+      toast.success('Rehber yayından kaldırıldı');
+    } catch {
+      toast.error('İşlem başarısız');
+    }
+  };
+
   const handleDelete = async () => {
     if (!trip) return;
     try {
@@ -278,6 +315,63 @@ export default function TripDetailsPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
+
+      {/* ── Publish Modal ────────────────────────────────────────────────── */}
+      {showPublishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Rehber Olarak Yayınla</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Rotanız toplulukla paylaşılacak</p>
+              </div>
+              <button onClick={() => setShowPublishModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">
+                  Kişisel Notunuz
+                </label>
+                <textarea
+                  value={guideIntro}
+                  onChange={e => setGuideIntro(e.target.value)}
+                  placeholder="Kapadokya'ya kaç kez gittiğinizi, gezi deneyiminizi kısaca anlatın..."
+                  rows={3}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">
+                  Genel İpuçları <span className="text-gray-400 font-normal">(her satır ayrı ipucu)</span>
+                </label>
+                <textarea
+                  value={guideTips}
+                  onChange={e => setGuideTips(e.target.value)}
+                  placeholder={"Sabah erken çıkın, turist kalabalığından kaçınırsınız\nBalon turu için 3 ay önceden rezervasyon yapın\nNevşehir'den araç kiralamak en pratik seçenek"}
+                  rows={4}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1 h-11 rounded-xl font-bold"
+                onClick={() => setShowPublishModal(false)}>
+                Vazgeç
+              </Button>
+              <Button className="flex-1 h-11 rounded-xl font-black bg-orange-600 hover:bg-orange-700 gap-2"
+                onClick={handlePublish} disabled={publishLoading}>
+                {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                Yayınla
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Sub-header ──────────────────────────────────────────────────── */}
       <div className="h-14 border-b bg-white flex items-center px-4 gap-3 shrink-0 shadow-sm">
@@ -353,6 +447,24 @@ export default function TripDetailsPage() {
               className="bg-orange-600 hover:bg-orange-700 h-8 px-4 rounded-full text-xs font-bold gap-1.5">
               Kaydetmek için giriş yap
             </Button>
+          )}
+
+          {user && (
+            isPublic ? (
+              <Button variant="outline" size="sm"
+                className="h-8 px-3 rounded-xl border-green-200 text-green-700 bg-green-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-bold gap-1.5 transition-all"
+                onClick={handleUnpublish}>
+                <Globe className="h-3.5 w-3.5" />
+                Yayında
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm"
+                className="h-8 px-3 rounded-xl border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100 text-xs font-bold gap-1.5"
+                onClick={() => setShowPublishModal(true)}>
+                <GlobeLock className="h-3.5 w-3.5" />
+                Yayınla
+              </Button>
+            )
           )}
 
           <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-900" onClick={handleShare}>
