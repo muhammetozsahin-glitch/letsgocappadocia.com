@@ -144,11 +144,24 @@ export default function AccountPage() {
                     <CardContent className="p-0">
                       <div className="flex flex-col sm:flex-row">
                         <div className="sm:w-56 h-48 sm:h-auto bg-gray-200 relative overflow-hidden shrink-0">
-                          <img 
-                            src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400" 
-                            alt={trip.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-luxury duration-700"
-                          />
+                          {(() => {
+                            const firstItem = trip.itinerary?.days?.[0]?.items?.[0];
+                            const photoSrc = firstItem?.photo_reference
+                              ? (firstItem.photo_reference.startsWith('http')
+                                  ? firstItem.photo_reference
+                                  : api.getPhotoUrl(firstItem.photo_reference))
+                              : 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=800';
+                            return (
+                              <img
+                                src={photoSrc}
+                                alt={trip.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-luxury duration-700"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=800';
+                                }}
+                              />
+                            );
+                          })()}
                           <div className="absolute top-4 left-4">
                             <Badge className="bg-primary text-white border-none font-black px-2 py-0.5 rounded-full uppercase text-[8px]">
                               <Zap className="h-2 w-2 mr-1" />
@@ -204,10 +217,15 @@ export default function AccountPage() {
                             <div className="flex -space-x-2">
                               {trip.itinerary.days[0].items.slice(0, 3).map((item, i) => (
                                 <div key={i} className="w-10 h-10 rounded-xl border-2 border-white dark:border-secondary bg-gray-100 overflow-hidden shadow-md">
-                                  <img 
-                                    src={item.photo_reference ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference)) : 'https://via.placeholder.com/100'} 
-                                    alt="" 
-                                    className="w-full h-full object-cover" 
+                                  <img
+                                    src={item.photo_reference
+                                      ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference))
+                                      : 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=100&q=80'}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=100&q=80';
+                                    }}
                                   />
                                 </div>
                               ))}
