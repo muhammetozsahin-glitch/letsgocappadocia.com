@@ -157,7 +157,7 @@ const api = {
   async getPublicGuides(limit = 20) {
     const { data, error } = await supabase
       .from('trips')
-      .select('id, title, destination, start_date, end_date, itinerary, guide_intro, guide_tips, views_count, likes_count, published_at, user_id, profiles(id, full_name)')
+      .select('id, title, destination, start_date, end_date, itinerary, guide_intro, guide_tips, views_count, likes_count, published_at, user_id')
       .eq('is_public', true)
       .order('likes_count', { ascending: false })
       .order('views_count', { ascending: false })
@@ -169,7 +169,7 @@ const api = {
   async getPublicGuide(tripId: string) {
     const { data, error } = await supabase
       .from('trips')
-      .select('*, profiles(id, full_name)')
+      .select('*')
       .eq('id', tripId)
       .eq('is_public', true)
       .single();
