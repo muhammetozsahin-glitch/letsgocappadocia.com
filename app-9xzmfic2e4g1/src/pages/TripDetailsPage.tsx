@@ -4,8 +4,8 @@ import api, { Trip, Place, ItineraryDay } from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
 import {
-  Loader2, Share2, MapPin, Trash2, Zap,
-  Plus, Sparkles, LayoutGrid, RotateCcw, RotateCw,
+  Loader2, Share2, MapPin, Trash2,
+  Plus, LayoutGrid, RotateCcw, RotateCw,
   CheckCircle2, Clock, Navigation
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -380,17 +380,6 @@ export default function TripDetailsPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-
-          <div className="h-4 w-px bg-gray-200 mx-0.5" />
-
-          <Button variant="outline" size="sm" className="h-8 px-3 rounded-xl border-gray-200 text-xs font-bold gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-            AI Rota
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 px-3 rounded-xl border-gray-200 text-xs font-bold gap-1.5">
-            <Zap className="h-3.5 w-3.5 text-blue-500" />
-            Optimize
-          </Button>
         </div>
       </div>
 
@@ -464,10 +453,11 @@ export default function TripDetailsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 border-gray-100">
-                  <Sparkles className="h-3 w-3 text-orange-500" />AI
-                </Button>
-                <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-orange-600 hover:bg-orange-700">
+                <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-orange-600 hover:bg-orange-700"
+                  onClick={() => {
+                    document.getElementById(`place-search-day-0`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => (document.querySelector(`#place-search-day-0 input`) as HTMLInputElement)?.focus(), 400);
+                  }}>
                   <Plus className="h-3 w-3" />Yer Ekle
                 </Button>
               </div>
