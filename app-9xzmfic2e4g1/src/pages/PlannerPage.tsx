@@ -155,7 +155,7 @@ const PlannerPage = () => {
     try {
       const startDate = format(data.dateRange.from, 'yyyy-MM-dd');
       const endDate   = format(data.dateRange.to,   'yyyy-MM-dd');
-      const result = await retryWithBackoff(
+      const result: any = await retryWithBackoff(
         () => withTimeout(
           api.generateItinerary({
             startDate,

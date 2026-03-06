@@ -20,7 +20,7 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
             key={option.id}
             className={cn(
               'h-1.5 flex-1 rounded-full transition-all duration-300',
-              i <= selectedIndex ? option.dot : 'bg-gray-100'
+              i <= selectedIndex ? option.bg : 'bg-gray-100'
             )}
             animate={{ scaleX: i <= selectedIndex ? 1 : 0.6 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
@@ -46,7 +46,7 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
               className={cn(
                 'relative group flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200 w-full overflow-hidden',
                 isSelected
-                  ? `${option.activeBorder} ${option.activeBg} shadow-md`
+                  ? `${option.border} ${option.bg} shadow-md`
                   : 'border-gray-100 bg-gray-50/60 hover:border-gray-200 hover:bg-white hover:shadow-sm'
               )}
             >
@@ -57,8 +57,8 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
                     key={i}
                     className={cn(
                       'w-1.5 h-1.5 rounded-full transition-all duration-200',
-                      i < option.tier
-                        ? isSelected ? option.dot : 'bg-gray-300'
+                      i < 3
+                        ? isSelected ? option.bg : 'bg-gray-300'
                         : 'bg-gray-100'
                     )}
                   />
@@ -69,7 +69,7 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
               <div className={cn(
                 'w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 shrink-0',
                 isSelected
-                  ? `${option.activeBg} ${option.color} border-2 ${option.activeBorder}`
+                  ? `${option.bg} ${option.text} border-2 ${option.border}`
                   : 'bg-white text-gray-400 border border-gray-100 shadow-sm'
               )}>
                 <Icon className="h-5 w-5" />
@@ -79,7 +79,7 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
               <div className="flex-1 min-w-0 pr-12">
                 <p className={cn(
                   'text-sm font-black uppercase tracking-wider',
-                  isSelected ? option.color : 'text-gray-700'
+                  isSelected ? option.text : 'text-gray-700'
                 )}>
                   {option.label}
                 </p>
@@ -91,9 +91,9 @@ export const BudgetSelector = memo(({ selectedId, onSelect }: BudgetSelectorProp
               {/* Price range */}
               <div className={cn(
                 'absolute bottom-3 right-4 text-[10px] font-bold tracking-wide transition-colors',
-                isSelected ? option.color : 'text-gray-300'
+                isSelected ? option.text : 'text-gray-300'
               )}>
-                {option.range}
+                {option.description}
               </div>
             </motion.button>
           );

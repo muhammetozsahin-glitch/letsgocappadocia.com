@@ -32,7 +32,7 @@ interface PlaceDetail {
   opening_hours?: string[] | null;
   why_visit: string[];
   tips: string[];
-  reviews: { author: string; rating: number; text: string; time: string }[];
+  reviews: { author: string; rating: number | undefined; text: string; time: string }[];
 }
 
 interface SelectedPOI {
@@ -122,13 +122,13 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           tips.push((poi as any).personal_tip);
         }
         const reviewTips = (place.reviews || [])
-          .filter(r => r.rating >= 4 && r.text?.length > 30)
+          .filter(r => (r.rating ?? 0) >= 4 && r.text?.length > 30)
           .slice(0, tips.length > 0 ? 1 : 2)
           .map(r => `"${r.text.slice(0, 120).trim()}…"`);
         tips.push(...reviewTips);
 
         // summary: editorial_summary sadece Türkçe ise göster, değilse boş bırak
-        const rawSummary = place.editorial_summary?.overview || '';
+        const rawSummary = (place as any).editorial_summary?.overview || '';
         const isTurkish = /[çğışöüÇĞİŞÖÜ]/.test(rawSummary) || !/[a-zA-Z]{4,}/.test(rawSummary);
         const summary = isTurkish ? rawSummary : '';
 
@@ -569,14 +569,14 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                           )}
 
                           {/* Çalışma saatleri */}
-                          {placeDetail.opening_hours?.length > 0 && (
+                          {(placeDetail.opening_hours?.length ?? 0) > 0 && (
                             <div className="space-y-2">
                               <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5 text-blue-500" />
                                 Çalışma Saatleri
                               </h4>
                               <div className="space-y-1">
-                                {placeDetail.opening_hours.map((h, i) => (
+                                {(placeDetail.opening_hours ?? []).map((h, i) => (
                                   <p key={i} className="text-[11px] text-gray-500">{h}</p>
                                 ))}
                               </div>
@@ -607,7 +607,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                                   <div className="flex items-center gap-0.5">
                                     {[1,2,3,4,5].map(s => (
                                       <Star key={s}
-                                        className={cn('h-3 w-3', s <= review.rating
+                                        className={cn('h-3 w-3', s <= (review.rating ?? 0)
                                           ? 'fill-amber-400 text-amber-400'
                                           : 'text-gray-200 fill-gray-200'
                                         )}
