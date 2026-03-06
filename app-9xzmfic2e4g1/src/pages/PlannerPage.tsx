@@ -174,6 +174,16 @@ const PlannerPage = () => {
         { maxRetries: 2, initialDelay: 1000, maxDelay: 5000 }
       );
       clearInterval(iv);
+
+      // Kullanıcıya AI/mock durumunu bildir
+      if (!result.ai_used) {
+        toast.warning('Demo rota oluşturuldu', {
+          description: result.ai_error ?? 'AI kullanılamadı, örnek rota gösteriliyor.',
+          duration: 10000,
+        });
+      }
+
+      const itinerary = { days: result.days };
       if (user) {
         const saved = await api.saveTrip({
           user_id: user.id,
@@ -191,12 +201,12 @@ const PlannerPage = () => {
               budget: data.budget,
               travelers: data.travelers,
             },
-          itinerary: result,
+          itinerary,
         });
         navigate(`/trip/${saved.id}`);
         toast.success('Rotanız hazır!');
       } else {
-        sessionStorage.setItem('pending_trip', JSON.stringify(result));
+        sessionStorage.setItem('pending_trip', JSON.stringify(itinerary));
         navigate('/login', { state: { from: '/planner', message: 'Planınızı kaydetmek için giriş yapın' } });
       }
     } catch (err) {
