@@ -297,8 +297,27 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
 
         marker.addListener('click', () => {
           onMarkerClick(item.place_id);
-          // Sağ panel (PlaceDetail) zaten activePlaceId üzerinden açılıyor
-          // InfoWindow kaldırıldı - tek tutarlı UI için
+
+          // Sağ paneli aç — itinerary item'dan tüm veriyi taşı
+          const photoUrl = item.photo_reference
+            ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference))
+            : '';
+
+          const poi: SelectedPOI & { why_visit?: string; personal_tip?: string } = {
+            place_id: item.place_id,
+            name: item.name,
+            lat: item.lat,
+            lng: item.lng,
+            photoUrl,
+            category: item.category || 'point_of_interest',
+            formatted_address: item.formatted_address || '',
+            rating: item.rating ?? undefined,
+            why_visit: (item as any).why_visit,
+            personal_tip: (item as any).personal_tip,
+          };
+
+          setSelectedPOI(poi);
+          fetchPlaceDetail(poi);
         });
 
         markersRef.current[item.place_id] = { marker, dayIndex };
