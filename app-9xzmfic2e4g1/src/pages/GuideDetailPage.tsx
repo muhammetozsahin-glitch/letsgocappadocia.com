@@ -128,13 +128,11 @@ export default function GuideDetailPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-        {/* Back */}
         <button onClick={() => navigate('/rehberler')}
           className="absolute top-6 left-6 flex items-center gap-2 text-white/80 hover:text-white text-xs font-bold transition-colors bg-black/20 backdrop-blur-sm rounded-full px-3 py-1.5">
           <ChevronLeft className="h-3.5 w-3.5" /> Rehberler
         </button>
 
-        {/* Title */}
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
           <div className="max-w-4xl mx-auto">
             <div className="flex flex-wrap gap-2 mb-3">
@@ -156,10 +154,10 @@ export default function GuideDetailPage() {
               {guide.title}
             </h1>
             <div className="flex items-center gap-4 text-white/60 text-xs font-bold">
-              {guide.profiles?.username && (
+              {guide.profiles?.full_name && (
                 <span className="flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5" />
-                  @{guide.profiles.username}
+                  {guide.profiles.full_name}
                 </span>
               )}
               {guide.published_at && (
@@ -202,7 +200,6 @@ export default function GuideDetailPage() {
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
 
-        {/* Author intro */}
         {guide.guide_intro && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
@@ -211,7 +208,6 @@ export default function GuideDetailPage() {
           </motion.div>
         )}
 
-        {/* General tips */}
         {tips.length > 0 && (
           <div className="bg-gray-50 rounded-2xl p-5 space-y-3">
             <button
@@ -247,9 +243,8 @@ export default function GuideDetailPage() {
           </div>
         )}
 
-        {/* Day tabs + itinerary */}
         <div className="space-y-4">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {days.map((day: any, idx: number) => (
               <button
                 key={idx}
@@ -257,7 +252,7 @@ export default function GuideDetailPage() {
                 className={cn(
                   'flex flex-col items-center px-4 py-2.5 rounded-xl transition-all shrink-0 min-w-[72px]',
                   selectedDay === idx
-                    ? 'text-white shadow-lg shadow-orange-600/20'
+                    ? 'text-white shadow-lg'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 )}
                 style={selectedDay === idx ? { backgroundColor: DAY_COLORS[idx % DAY_COLORS.length] } : {}}
@@ -276,7 +271,6 @@ export default function GuideDetailPage() {
 
           {currentDay && (
             <div className="grid lg:grid-cols-2 gap-6">
-              {/* Place list */}
               <div className="space-y-3">
                 {(currentDay.items || []).map((item: any, idx: number) => (
                   <motion.div
@@ -292,13 +286,10 @@ export default function GuideDetailPage() {
                         : 'border-gray-100 bg-white hover:border-orange-200'
                     )}
                   >
-                    {/* Number */}
                     <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-[11px] font-black shrink-0 mt-0.5"
                       style={{ backgroundColor: DAY_COLORS[selectedDay % DAY_COLORS.length] }}>
                       {idx + 1}
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="text-sm font-black text-gray-900 leading-tight">{item.name}</h4>
@@ -327,8 +318,6 @@ export default function GuideDetailPage() {
                         </p>
                       )}
                     </div>
-
-                    {/* Thumbnail */}
                     {item.photo_reference && (
                       <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0">
                         <img
@@ -343,7 +332,6 @@ export default function GuideDetailPage() {
                 ))}
               </div>
 
-              {/* Map */}
               <div className="h-96 lg:h-auto lg:min-h-[400px] rounded-3xl overflow-hidden shadow-xl">
                 <TripMap
                   itinerary={{ days: [currentDay] }}
@@ -355,12 +343,11 @@ export default function GuideDetailPage() {
           )}
         </div>
 
-        {/* Bottom CTA */}
         <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-3xl p-8 text-center space-y-4">
           <h3 className="text-2xl font-black text-gray-900 tracking-tight">Bu rotayı beğendiniz mi?</h3>
           <p className="text-gray-500 text-sm italic">Bir tıkla kendi planınıza kopyalayın ve özelleştirin.</p>
           <Button onClick={handleClone} disabled={cloning}
-            className="h-12 px-10 rounded-xl bg-orange-600 hover:bg-orange-700 font-black gap-2 shadow-lg shadow-orange-600/20">
+            className="h-12 px-10 rounded-xl bg-orange-600 hover:bg-orange-700 font-black gap-2 shadow-lg">
             {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
             Bu Planı Kullan
           </Button>
