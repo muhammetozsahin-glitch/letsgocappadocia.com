@@ -250,7 +250,6 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
     polylinesRef.current = [];
 
     const bounds = new google.maps.LatLngBounds();
-    const infoWindow = new google.maps.InfoWindow();
 
     itinerary.days.forEach((day, dayIndex) => {
       const dayColor = DAY_COLORS[dayIndex % DAY_COLORS.length];
@@ -282,22 +281,8 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
 
         marker.addListener('click', () => {
           onMarkerClick(item.place_id);
-          const photoUrl = item.photo_reference
-            ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference))
-            : '';
-          infoWindow.setContent(`
-            <div style="padding:8px;min-width:200px;font-family:sans-serif;">
-              ${photoUrl ? `<img src="${photoUrl}" style="width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />` : ''}
-              <h4 style="margin:0 0 2px;font-size:13px;font-weight:bold;">${item.name}</h4>
-              <p style="margin:0 0 6px;font-size:10px;color:#6B7280;">${item.category}</p>
-              <div style="display:flex;align-items:center;justify-content:space-between;">
-                <span style="font-size:11px;font-weight:bold;color:#F59E0B;">★ ${item.rating || 'N/A'}</span>
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}" target="_blank"
-                  style="color:#EA580C;font-size:11px;font-weight:bold;text-decoration:none;">Yol Tarifi →</a>
-              </div>
-            </div>
-          `);
-          infoWindow.open(googleMap, marker);
+          // Sağ panel (PlaceDetail) zaten activePlaceId üzerinden açılıyor
+          // InfoWindow kaldırıldı - tek tutarlı UI için
         });
 
         markersRef.current[item.place_id] = { marker, dayIndex };
