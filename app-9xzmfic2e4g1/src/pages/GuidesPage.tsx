@@ -40,7 +40,6 @@ export default function GuidesPage() {
     e.preventDefault();
     if (!user) { navigate('/login'); return; }
     const wasLiked = myLikes.has(guideId);
-    // optimistic
     setMyLikes(prev => {
       const next = new Set(prev);
       wasLiked ? next.delete(guideId) : next.add(guideId);
@@ -53,7 +52,6 @@ export default function GuidesPage() {
     try {
       await api.toggleLike(guideId);
     } catch {
-      // revert
       setMyLikes(prev => {
         const next = new Set(prev);
         wasLiked ? next.add(guideId) : next.delete(guideId);
@@ -187,14 +185,12 @@ export default function GuidesPage() {
 
                       {/* Body */}
                       <div className="p-4 space-y-3">
-                        {/* Author intro */}
                         {guide.guide_intro && (
                           <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
                             "{guide.guide_intro}"
                           </p>
                         )}
 
-                        {/* Meta */}
                         <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400">
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3 text-primary" />
@@ -208,7 +204,6 @@ export default function GuidesPage() {
                           )}
                         </div>
 
-                        {/* Footer */}
                         <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                           <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400">
                             <span className="flex items-center gap-1">
@@ -219,8 +214,8 @@ export default function GuidesPage() {
                               <Eye className="h-3 w-3" />
                               {guide.views_count || 0}
                             </span>
-                            {guide.profiles?.username && (
-                              <span className="text-gray-300">@{guide.profiles.username}</span>
+                            {guide.profiles?.full_name && (
+                              <span className="text-gray-300">{guide.profiles.full_name}</span>
                             )}
                           </div>
                           <span className="flex items-center gap-1 text-[10px] font-black text-orange-600 group-hover:gap-2 transition-all">
