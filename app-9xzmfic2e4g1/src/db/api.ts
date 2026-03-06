@@ -100,7 +100,7 @@ const api = {
     transport: string;
     budget: string;
     travelers: number;
-  }) {
+  }): Promise<{ days: any[]; ai_used: boolean; ai_error: string | null }> {
     const { data, error } = await supabase.functions.invoke('generate-itinerary', {
       body: params,
     });
