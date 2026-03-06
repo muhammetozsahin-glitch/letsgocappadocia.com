@@ -87,12 +87,12 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           'place_id', 'name', 'editorial_summary', 'rating', 'user_ratings_total',
           'opening_hours', 'reviews', 'types', 'formatted_address',
         ],
-      },
+        language: 'tr',
+      } as any,
       (place, status) => {
         setDetailLoading(false);
         if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
 
-        // Build why_visit from types + editorial_summary
         const typeLabels: Record<string, string> = {
           tourist_attraction: 'Turistik bir cazibe noktası — ziyaret değer.',
           museum: 'Tarihi ve kültürel bir müze deneyimi sunar.',
@@ -104,23 +104,38 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           mosque: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
           point_of_interest: 'Bölgenin önemli ilgi noktalarından biri.',
         };
+
+        // why_visit: önce AI'dan gelen poi.why_visit, yoksa tip etiketlerine bak
         const whyVisit: string[] = [];
-        if (place.editorial_summary?.overview) whyVisit.push(place.editorial_summary.overview);
-        for (const t of (place.types || [])) {
-          const label = typeLabels[t];
-          if (label && !whyVisit.includes(label)) { whyVisit.push(label); break; }
+        if ((poi as any).why_visit) {
+          whyVisit.push((poi as any).why_visit);
+        } else {
+          for (const t of (place.types || [])) {
+            const label = typeLabels[t];
+            if (label) { whyVisit.push(label); break; }
+          }
         }
 
-        // Build tips from top-rated reviews
-        const tips: string[] = (place.reviews || [])
+        // Tips: önce AI'dan gelen personal_tip, sonra Türkçe yorumlar
+        const tips: string[] = [];
+        if ((poi as any).personal_tip) {
+          tips.push((poi as any).personal_tip);
+        }
+        const reviewTips = (place.reviews || [])
           .filter(r => r.rating >= 4 && r.text?.length > 30)
-          .slice(0, 2)
+          .slice(0, tips.length > 0 ? 1 : 2)
           .map(r => `"${r.text.slice(0, 120).trim()}…"`);
+        tips.push(...reviewTips);
+
+        // summary: editorial_summary sadece Türkçe ise göster, değilse boş bırak
+        const rawSummary = place.editorial_summary?.overview || '';
+        const isTurkish = /[çğışöüÇĞİŞÖÜ]/.test(rawSummary) || !/[a-zA-Z]{4,}/.test(rawSummary);
+        const summary = isTurkish ? rawSummary : '';
 
         const detail: PlaceDetail = {
           place_id: place.place_id || poi.place_id,
           name: place.name || poi.name,
-          summary: place.editorial_summary?.overview || '',
+          summary,
           rating: place.rating,
           total_ratings: place.user_ratings_total,
           is_open_now: place.opening_hours?.isOpen?.() ?? null,
@@ -206,7 +221,8 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
               {
                 placeId,
                 fields: ['place_id', 'name', 'formatted_address', 'geometry', 'rating', 'photos', 'types'],
-              },
+                language: 'tr',
+              } as any,
               (place, status) => {
                 if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) return;
 
