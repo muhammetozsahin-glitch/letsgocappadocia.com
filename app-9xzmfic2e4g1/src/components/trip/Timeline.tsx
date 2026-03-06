@@ -305,11 +305,24 @@ function SortableItem({
   };
 
   const photoUrl = useMemo(() => {
-    if (!item.photo_reference) return null;
-    return item.photo_reference.startsWith('http')
-      ? item.photo_reference
-      : api.getPhotoUrl(item.photo_reference);
-  }, [item.photo_reference]);
+    if (item.photo_reference) {
+      return item.photo_reference.startsWith('http')
+        ? item.photo_reference
+        : api.getPhotoUrl(item.photo_reference);
+    }
+    // Kategori bazlı Kapadokya fallback resimleri
+    const fallbacks: Record<string, string> = {
+      museum:      'https://images.unsplash.com/photo-1599930113854-d6d7fd521f10?w=400&q=80',
+      nature:      'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=400&q=80',
+      history:     'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&q=80',
+      landmark:    'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&q=80',
+      gastronomy:  'https://images.unsplash.com/photo-1512152272829-e3139592d56f?w=400&q=80',
+      culture:     'https://images.unsplash.com/photo-1599930113854-d6d7fd521f10?w=400&q=80',
+      activity:    'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=400&q=80',
+      wellness:    'https://images.unsplash.com/photo-1544833316-64d88e00182a?w=400&q=80',
+    };
+    return fallbacks[item.category] ?? 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&q=80';
+  }, [item.photo_reference, item.category]);
 
   const endTime = calcEndTime(item);
 
@@ -361,24 +374,24 @@ function SortableItem({
               </div>
             </div>
 
-            {/* Küçük thumbnail */}
-            {photoUrl && !imgError && (
-              <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                {!imgLoaded && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse" />
+            {/* Küçük thumbnail — her zaman göster */}
+            <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+              {!imgLoaded && (
+                <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse" />
+              )}
+              <img
+                src={imgError
+                  ? 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&q=80'
+                  : photoUrl}
+                alt={item.name}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => { setImgError(true); setImgLoaded(true); }}
+                className={cn(
+                  "w-full h-full object-cover transition-opacity duration-300",
+                  imgLoaded ? "opacity-100" : "opacity-0"
                 )}
-                <img
-                  src={photoUrl}
-                  alt={item.name}
-                  onLoad={() => setImgLoaded(true)}
-                  onError={() => setImgError(true)}
-                  className={cn(
-                    "w-full h-full object-cover transition-opacity duration-300",
-                    imgLoaded ? "opacity-100" : "opacity-0"
-                  )}
-                />
-              </div>
-            )}
+              />
+            </div>
 
             {/* Aksiyonlar (hover'da görünür) */}
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
