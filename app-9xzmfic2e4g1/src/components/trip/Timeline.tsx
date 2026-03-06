@@ -246,28 +246,8 @@ function DaySection({
         </DndContext>
       )}
 
-      {/* AI suggestion card */}
-      <div className="mx-2">
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-2xl p-4 space-y-3 relative overflow-hidden group">
-          <div className="absolute -right-3 -top-3 opacity-5">
-            <Wand2 className="h-20 w-20 text-orange-600" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-orange-800">Akıllı Tur Önerisi</span>
-            <Badge className="bg-orange-100 text-orange-600 hover:bg-orange-100 border-0 text-[9px] font-black">%82 Uyum</Badge>
-          </div>
-          <p className="text-[11px] text-gray-600 leading-relaxed">
-            Planınız Green Tour rotasıyla %82 uyumlu. Yeraltı şehri ve Ihlara Vadisi eklenebilir.
-          </p>
-          <Button className="w-full bg-orange-600 hover:bg-orange-700 h-8 rounded-xl text-[10px] font-black gap-1.5">
-            <Wand2 className="h-3.5 w-3.5" />
-            Seçenekleri İncele
-          </Button>
-        </div>
-      </div>
-
       {/* Add place search */}
-      <div className="mx-2">
+      <div className="mx-2" id={`place-search-day-${dayIndex}`}>
         <PlaceSearch
           onPlaceSelect={place => onAddPlace(dayIndex, place)}
           placeholder="Yeni bir durak ekle..."
