@@ -4,6 +4,8 @@ import TripDetailsPage from './pages/TripDetailsPage';
 import AccountPage from './pages/AccountPage';
 import ExplorePage from './pages/ExplorePage';
 import LoginPage from './pages/LoginPage';
+import GuidesPage from './pages/GuidesPage';
+import GuideDetailPage from './pages/GuideDetailPage';
 import type { ReactNode } from 'react';
 
 interface RouteConfig {
@@ -42,6 +44,16 @@ const routes: RouteConfig[] = [
     name: 'Login',
     path: '/login',
     element: <LoginPage />
+  },
+  {
+    name: 'Guides',
+    path: '/rehberler',
+    element: <GuidesPage />
+  },
+  {
+    name: 'Guide Detail',
+    path: '/rehber/:id',
+    element: <GuideDetailPage />
   }
 ];
 
