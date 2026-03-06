@@ -124,10 +124,112 @@ const api = {
   },
 
   getPhotoUrl(photoReference: string) {
-    const { data } = supabase.storage.from('dummy').getPublicUrl('dummy'); // Just to get the base URL
+    const { data } = supabase.storage.from('dummy').getPublicUrl('dummy');
     const baseUrl = data.publicUrl.split('/storage/v1')[0];
     return `${baseUrl}/functions/v1/get-place-photo?photo_reference=${photoReference}`;
-  }
-};
+  },
 
-export default api;
+  // ── Public Guides ──────────────────────────────────────────────────────────
+
+  /** Rehber olarak yayınla / yayından kaldır */
+  async publishGuide(tripId: string, opts: {
+    guide_intro?: string;
+    guide_tips?: string[];
+  }) {
+    const { data, error } = await supabase
+      .from('trips')
+      .update({
+        is_public: true,
+        guide_intro: opts.guide_intro || null,
+        guide_tips: opts.guide_tips || [],
+        published_at: new Date().toISOString(),
+      })
+      .eq('id', tripId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async unpublishGuide(tripId: string) {
+    const { error } = await supabase
+      .from('trips')
+      .update({ is_public: false, published_at: null })
+      .eq('id', tripId);
+    if (error) throw error;
+  },
+
+  /** Tüm public rehberleri getir (popülerlik sırasına göre) */
+  async getPublicGuides(limit = 20) {
+    const { data, error } = await supabase
+      .from('trips')
+      .select('id, title, destination, start_date, end_date, itinerary, guide_intro, guide_tips, views_count, likes_count, published_at, user_id, profiles(id, username)')
+      .eq('is_public', true)
+      .order('likes_count', { ascending: false })
+      .order('views_count', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /** Tek bir public rehberi getir + view sayacını artır */
+  async getPublicGuide(tripId: string) {
+    const { data, error } = await supabase
+      .from('trips')
+      .select('*, profiles(id, username)')
+      .eq('id', tripId)
+      .eq('is_public', true)
+      .single();
+    if (error) throw error;
+    // view sayacını artır (fire & forget)
+    supabase.rpc('increment_guide_views', { trip_id: tripId }).then(() => {});
+    return data;
+  },
+
+  /** Rehberi kopyalayarak kendi tripini oluştur */
+  async cloneGuide(tripId: string): Promise<Trip> {
+    const guide = await this.getPublicGuide(tripId);
+    if (!guide) throw new Error('Rehber bulunamadı');
+    const newTrip = await this.saveTrip({
+      title: `${guide.title} (Kopyam)`,
+      destination: guide.destination,
+      start_date: guide.start_date,
+      end_date: guide.end_date,
+      preferences: guide.preferences,
+      itinerary: guide.itinerary,
+    });
+    return newTrip;
+  },
+
+  /** Beğen / beğeniyi geri al */
+  async toggleLike(tripId: string): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Giriş gerekli');
+
+    const { data: existing } = await supabase
+      .from('guide_likes')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .eq('trip_id', tripId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('guide_likes').delete().eq('user_id', user.id).eq('trip_id', tripId);
+      return false; // beğeni kaldırıldı
+    } else {
+      await supabase.from('guide_likes').insert({ user_id: user.id, trip_id: tripId });
+      return true; // beğenildi
+    }
+  },
+
+  /** Kullanıcının beğendiği guide id'leri */
+  async getMyLikes(): Promise<string[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data } = await supabase
+      .from('guide_likes')
+      .select('trip_id')
+      .eq('user_id', user.id);
+    return (data || []).map(r => r.trip_id);
+  },
+};
