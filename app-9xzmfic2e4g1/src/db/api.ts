@@ -360,6 +360,44 @@ const api = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
+  // SITE SETTINGS API
+  // ═══════════════════════════════════════════════════════════════════════
+
+  settings: {
+    /** Tek bir ayarı getir */
+    async get<T = any>(key: string): Promise<T | null> {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+      if (error || !data) return null;
+      return data.value as T;
+    },
+
+    /** Tüm ayarları getir */
+    async getAll(): Promise<Record<string, any>> {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('key, value');
+      if (error || !data) return {};
+      const result: Record<string, any> = {};
+      for (const row of data) {
+        result[row.key] = row.value;
+      }
+      return result;
+    },
+
+    /** Bir ayarı güncelle (admin) */
+    async set(key: string, value: any): Promise<void> {
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (error) throw error;
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
   // ADMIN API
   // ═══════════════════════════════════════════════════════════════════════
 
