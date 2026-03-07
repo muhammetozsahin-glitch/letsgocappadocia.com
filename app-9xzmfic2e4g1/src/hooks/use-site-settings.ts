@@ -73,7 +73,7 @@ const DEFAULTS: SiteSettings = {
   },
   cta_section: {
     title_1: 'BİR SONRAKİ', title_2: 'EFSANENİZİ', title_3: 'YAZIN',
-    description: 'Kapadokya\'nın zamansız ruhunu, modern teknolojinin gücüyle birleştirin.',
+    description: 'Kapadokya\'s zamansız ruhunu, modern teknolojinin gücüyle birleştirin.',
     button_text: 'Rotanı Oluştur', button_link: '/planner',
   },
   banner: { enabled: false, text: '', link: '', link_text: '', bg_color: '#EA580C', text_color: '#FFFFFF', dismissible: true },
@@ -123,8 +123,10 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refresh(); }, []);
 
+  const contextValue = { settings, loading, refresh };
+
   return (
-    <SiteSettingsContext.Provider value={{ settings, loading, refresh }}>
+    <SiteSettingsContext.Provider value={contextValue as any}>
       {children}
     </SiteSettingsContext.Provider>
   );
