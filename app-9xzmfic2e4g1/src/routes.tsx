@@ -6,6 +6,7 @@ import ExplorePage from './pages/ExplorePage';
 import LoginPage from './pages/LoginPage';
 import GuidesPage from './pages/GuidesPage';
 import GuideDetailPage from './pages/GuideDetailPage';
+import AdminPage from './pages/AdminPage';
 import type { ReactNode } from 'react';
 
 interface RouteConfig {
@@ -54,6 +55,11 @@ const routes: RouteConfig[] = [
     name: 'Guide Detail',
     path: '/rehber/:id',
     element: <GuideDetailPage />
+  },
+  {
+    name: 'Admin',
+    path: '/admin',
+    element: <AdminPage />
   }
 ];
 
