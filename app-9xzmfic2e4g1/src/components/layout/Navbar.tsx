@@ -17,12 +17,19 @@ import { ThemeToggle } from './ThemeToggle';
 import { MobileMenu } from './MobileMenu';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useSiteSettings } from '@/hooks/use-site-settings';
 
 export function Navbar() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const { settings } = useSiteSettings();
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // Dynamic nav items from settings
+  const navItems = [...settings.navbar.items]
+    .filter(item => item.visible)
+    .sort((a, b) => a.order - b.order);
 
   // Scroll efekti için
   useEffect(() => {
@@ -53,30 +60,15 @@ export function Navbar() {
 
             {/* Orta: Desktop Navigasyon */}
             <div className="hidden lg:flex items-center gap-8">
-              <Link
-                to="/explore"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Keşfet
-              </Link>
-              <Link
-                to="/planner"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Planla
-              </Link>
-              <Link
-                to="/rehberler"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Rehberler
-              </Link>
-              <Link
-                to="/account"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                Gezilerim
-              </Link>
+              {navItems.map(item => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
 
             {/* Sağ: Aksiyonlar */}
