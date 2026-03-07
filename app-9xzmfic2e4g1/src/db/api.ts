@@ -39,6 +39,32 @@ export interface Trip {
   created_at: string;
 }
 
+export interface DiscoverPlace {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  lat: number;
+  lng: number;
+  rating?: number;
+  user_ratings_total?: number;
+  photo_url?: string;
+  photo_reference?: string;
+  category: string;
+  types?: string[];
+  price_level?: number;
+}
+
+export interface PlaceDetail {
+  place_id: string;
+  name: string;
+  summary?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  is_open_now?: boolean;
+  opening_hours?: string[];
+  reviews?: { author: string; rating?: number; text: string; time: string }[];
+}
+
 const api = {
   async getTrips() {
     const { data, error } = await supabase
@@ -218,6 +244,105 @@ const api = {
       .select('trip_id')
       .eq('user_id', user.id);
     return (data || []).map((r: any) => r.trip_id);
+  },
+
+  // ── Discover Places — Cache Layer (DB okuma/yazma) ──────────────────────
+
+  /** search_cache tablosundan sorgu sonuçlarını kontrol et */
+  async getCachedSearch(cacheKey: string): Promise<string[] | null> {
+    const { data } = await supabase
+      .from('search_cache')
+      .select('place_ids, created_at')
+      .eq('cache_key', cacheKey)
+      .maybeSingle();
+
+    if (!data || !data.place_ids?.length) return null;
+
+    // 24 saat geçerlilik
+    const age = Date.now() - new Date(data.created_at).getTime();
+    if (age > 24 * 60 * 60 * 1000) return null;
+
+    return data.place_ids;
+  },
+
+  /** places_cache tablosundan place_id listesiyle yerleri çek */
+  async getCachedPlaces(placeIds: string[]): Promise<DiscoverPlace[]> {
+    const { data } = await supabase
+      .from('places_cache')
+      .select('*')
+      .in('place_id', placeIds);
+
+    if (!data?.length) return [];
+
+    return data.map((p: any) => ({
+      place_id: p.place_id,
+      name: p.name,
+      formatted_address: p.formatted_address,
+      lat: p.lat,
+      lng: p.lng,
+      rating: p.rating,
+      user_ratings_total: p.user_ratings_total,
+      photo_url: p.photo_reference
+        ? (p.photo_reference.startsWith('http') ? p.photo_reference : api.getPhotoUrl(p.photo_reference))
+        : null,
+      photo_reference: p.photo_reference,
+      category: p.category || 'Turistik Yer',
+      types: p.types || [],
+      price_level: p.price_level,
+    }));
+  },
+
+  /** Tek bir yeri places_cache'e kaydet */
+  async savePlaceToCache(place: {
+    place_id: string;
+    name: string;
+    formatted_address: string;
+    lat: number;
+    lng: number;
+    rating?: number;
+    user_ratings_total?: number;
+    photo_reference?: string;
+    types?: string[];
+    price_level?: number;
+    category?: string;
+  }) {
+    const normalized = place.name.toLowerCase().trim()
+      .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+      .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+      .replace(/\s+/g, ' ');
+
+    await supabase
+      .from('places_cache')
+      .upsert({
+        place_name_normalized: normalized,
+        place_id: place.place_id,
+        name: place.name,
+        formatted_address: place.formatted_address,
+        lat: place.lat,
+        lng: place.lng,
+        rating: place.rating || null,
+        user_ratings_total: place.user_ratings_total || null,
+        photo_reference: place.photo_reference || null,
+        types: place.types || [],
+        price_level: place.price_level ?? null,
+        category: place.category || 'Turistik Yer',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'place_name_normalized' })
+      .then(() => {});
+  },
+
+  /** Arama sorgusunu → place_id listesini search_cache'e kaydet */
+  async saveSearchToCache(cacheKey: string, query: string, category: string, placeIds: string[]) {
+    await supabase
+      .from('search_cache')
+      .upsert({
+        cache_key: cacheKey,
+        query,
+        category,
+        place_ids: placeIds,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'cache_key' })
+      .then(() => {});
   },
 };
 
