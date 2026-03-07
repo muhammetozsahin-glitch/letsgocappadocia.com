@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Star, Clock, MapPin, GripVertical, Car, Trash2, Edit3,
   MessageSquare, MoreVertical, Sun, Sunset, Moon, Coffee,
-  Package, Wand2
+  Package, Wand2, Plus
 } from 'lucide-react';
 import api from '@/db/api';
 import { useState, useMemo } from 'react';
@@ -69,6 +69,7 @@ interface TimelineProps {
   onPlaceClick: (id: string) => void;
   activePlaceId: string | null;
   dayStartDate?: string;
+  onOpenDiscover?: () => void;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ function DaySection({
   day, dayIndex,
   onReorder, onAddPlace, onDeletePlace,
   onUpdatePlaceNote, onUpdateDayNote,
-  onPlaceClick, activePlaceId,
+  onPlaceClick, activePlaceId, onOpenDiscover,
 }: TimelineProps & { day: ItineraryDay; dayIndex: number }) {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteText, setNoteText] = useState(day.notes || '');
@@ -246,11 +247,29 @@ function DaySection({
         </DndContext>
       )}
 
-      {/* Add place search */}
-      <div className="mx-2" id={`place-search-day-${dayIndex}`}>
+      {/* Add place: discover + search */}
+      <div className="mx-2 space-y-3" id={`place-search-day-${dayIndex}`}>
+        {onOpenDiscover && (
+          <button
+            onClick={onOpenDiscover}
+            className="w-full flex items-center justify-center gap-2.5 py-4 px-4 rounded-2xl border-2 border-dashed border-orange-200 dark:border-orange-800 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 hover:border-orange-400 hover:from-orange-100 hover:to-amber-100 transition-all group"
+          >
+            <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform">
+              <Plus className="h-4 w-4 text-white" />
+            </div>
+            <div className="text-left">
+              <span className="text-sm font-bold text-gray-800 dark:text-gray-200 block">
+                Yer Keşfet ve Ekle
+              </span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                Restoranlar, oteller, gezilecek yerler...
+              </span>
+            </div>
+          </button>
+        )}
         <PlaceSearch
           onPlaceSelect={place => onAddPlace(dayIndex, place)}
-          placeholder="Yeni bir durak ekle..."
+          placeholder="veya doğrudan yer adı ile ara..."
         />
       </div>
     </motion.div>
