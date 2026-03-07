@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { Trip, Place, ItineraryDay } from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
+import { AddToTripPanel } from '@/components/trip/AddToTripPanel';
 import {
   Loader2, Share2, MapPin, Trash2,
   Plus, LayoutGrid, RotateCcw, RotateCw,
@@ -73,6 +74,9 @@ export default function TripDetailsPage() {
   const [guideIntro, setGuideIntro] = useState('');
   const [guideTips, setGuideTips] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+
+  // Discover panel
+  const [showDiscoverPanel, setShowDiscoverPanel] = useState(false);
 
   // History operates on the full itinerary object
   const history = useUndoRedo<Trip['itinerary'] | null>(null);
@@ -295,6 +299,12 @@ export default function TripDetailsPage() {
       duration: h > 0 ? `${h}s${m > 0 ? ` ${m}dk` : ''}` : `${m}dk`,
     };
   }, [trip, selectedDayIndex]);
+
+  // All place IDs across every day (for the discover panel "already added" check)
+  const existingPlaceIds = useMemo(() => {
+    if (!trip) return [];
+    return trip.itinerary.days.flatMap(d => d.items.map(i => i.place_id));
+  }, [trip]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -566,10 +576,7 @@ export default function TripDetailsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-orange-600 hover:bg-orange-700"
-                  onClick={() => {
-                    document.getElementById(`place-search-day-0`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(() => (document.querySelector(`#place-search-day-0 input`) as HTMLInputElement)?.focus(), 400);
-                  }}>
+                  onClick={() => setShowDiscoverPanel(true)}>
                   <Plus className="h-3 w-3" />Yer Ekle
                 </Button>
               </div>
@@ -586,6 +593,7 @@ export default function TripDetailsPage() {
               onUpdateDayNote={(_, note) => handleUpdateDayNote(selectedDayIndex, note)}
               onPlaceClick={setActivePlaceId}
               activePlaceId={activePlaceId}
+              onOpenDiscover={() => setShowDiscoverPanel(true)}
             />
           </div>
         </section>
@@ -653,6 +661,14 @@ export default function TripDetailsPage() {
           </Sheet>
         </div>
       </main>
+
+      {/* ── Discover Panel (Mindtrip style) ──────────────────────────── */}
+      <AddToTripPanel
+        isOpen={showDiscoverPanel}
+        onClose={() => setShowDiscoverPanel(false)}
+        onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
+        existingPlaceIds={existingPlaceIds}
+      />
     </div>
   );
 }
