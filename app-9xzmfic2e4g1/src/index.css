@@ -158,3 +158,12 @@
 .transition-luxury {
   transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
+
+/* Hide scrollbar utility */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
