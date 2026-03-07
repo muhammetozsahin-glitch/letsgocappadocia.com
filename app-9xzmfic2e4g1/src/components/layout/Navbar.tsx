@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, History, Compass, User, LogOut, Search, Settings, FileText } from 'lucide-react';
+import { MapPin, History, Compass, User, LogOut, Search, Settings, FileText, Shield } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -151,6 +151,17 @@ export function Navbar() {
                           Tercihler
                         </Link>
                       </DropdownMenuItem>
+                      {(profile as any)?.role === 'admin' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link to="/admin" className="cursor-pointer text-orange-600">
+                              <Shield className="mr-2 h-4 w-4" />
+                              Admin Panel
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => signOut()}
