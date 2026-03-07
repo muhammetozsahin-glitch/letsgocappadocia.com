@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, type ReactNode } from 'react';
+import { createContext, createElement, type ReactNode, useContext, useEffect, useState } from 'react';
 import api from '@/db/api';
 
 interface SiteSettings {
@@ -125,11 +125,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
 
   const contextValue = { settings, loading, refresh };
 
-  return (
-    <SiteSettingsContext.Provider value={contextValue as any}>
-      {children}
-    </SiteSettingsContext.Provider>
-  );
+  return createElement(SiteSettingsContext.Provider, { value: contextValue }, children);
 }
 
 export function useSiteSettings() {
