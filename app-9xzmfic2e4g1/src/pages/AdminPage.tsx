@@ -16,17 +16,19 @@ import {
   Loader2, TrendingUp, Globe, Heart, MapPin, Calendar,
   RefreshCw, AlertTriangle, CheckCircle2, ArrowUpRight,
   LayoutDashboard, UserCog, Route, HardDrive, LogOut,
+  FileText, Megaphone, Palette, Layout,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { ContentTab, BannerTab, ThemeTab, NavbarTab } from './admin/DesignTabs';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────────────────
-type TabId = 'dashboard' | 'users' | 'trips' | 'cache';
+type TabId = 'dashboard' | 'users' | 'trips' | 'cache' | 'content' | 'banner' | 'theme' | 'navbar';
 
 interface AdminUser {
   id: string;
@@ -54,10 +56,14 @@ interface AdminTrip {
 // Sidebar Tabs
 // ────────────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'users' as const,     label: 'Kullanıcılar', icon: UserCog },
-  { id: 'trips' as const,     label: 'Geziler', icon: Route },
-  { id: 'cache' as const,     label: 'Cache & Sistem', icon: HardDrive },
+  { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard, group: 'main' },
+  { id: 'users' as const,     label: 'Kullanıcılar', icon: UserCog, group: 'main' },
+  { id: 'trips' as const,     label: 'Geziler', icon: Route, group: 'main' },
+  { id: 'cache' as const,     label: 'Cache & Sistem', icon: HardDrive, group: 'main' },
+  { id: 'content' as const,   label: 'Site İçeriği', icon: FileText, group: 'design' },
+  { id: 'banner' as const,    label: 'Duyuru Bannerı', icon: Megaphone, group: 'design' },
+  { id: 'theme' as const,     label: 'Tema & Marka', icon: Palette, group: 'design' },
+  { id: 'navbar' as const,    label: 'Menü Düzeni', icon: Layout, group: 'design' },
 ];
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -125,8 +131,9 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1">
-          {TABS.map(tab => {
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <p className="px-4 pt-2 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-widest">Yönetim</p>
+          {TABS.filter(t => t.group === 'main').map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -141,6 +148,29 @@ export default function AdminPage() {
                 )}
               >
                 <Icon className={cn("h-4.5 w-4.5", isActive && "text-orange-600")} />
+                {tab.label}
+              </button>
+            );
+          })}
+
+          <div className="pt-3">
+            <p className="px-4 pt-2 pb-1 text-[9px] font-black text-gray-400 uppercase tracking-widest">Tasarım</p>
+          </div>
+          {TABS.filter(t => t.group === 'design').map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+                  isActive
+                    ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400"
+                    : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+                )}
+              >
+                <Icon className={cn("h-4.5 w-4.5", isActive && "text-purple-600")} />
                 {tab.label}
               </button>
             );
@@ -173,6 +203,10 @@ export default function AdminPage() {
             {activeTab === 'users' && <UsersTab />}
             {activeTab === 'trips' && <TripsTab />}
             {activeTab === 'cache' && <CacheTab />}
+            {activeTab === 'content' && <ContentTab />}
+            {activeTab === 'banner' && <BannerTab />}
+            {activeTab === 'theme' && <ThemeTab />}
+            {activeTab === 'navbar' && <NavbarTab />}
           </motion.div>
         </AnimatePresence>
       </main>
