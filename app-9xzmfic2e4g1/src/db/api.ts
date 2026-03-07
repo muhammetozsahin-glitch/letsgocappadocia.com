@@ -65,6 +65,20 @@ export interface PlaceDetail {
   reviews?: { author: string; rating?: number; text: string; time: string }[];
 }
 
+export interface AdminStats {
+  total_users: number;
+  total_trips: number;
+  public_guides: number;
+  total_likes: number;
+  total_views: number;
+  cached_places: number;
+  cached_searches: number;
+  users_today: number;
+  trips_today: number;
+  users_this_week: number;
+  trips_this_week: number;
+}
+
 const api = {
   async getTrips() {
     const { data, error } = await supabase
@@ -343,6 +357,120 @@ const api = {
         created_at: new Date().toISOString(),
       }, { onConflict: 'cache_key' })
       .then(() => {});
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADMIN API
+  // ═══════════════════════════════════════════════════════════════════════
+
+  admin: {
+    /** Dashboard istatistikleri */
+    async getStats(): Promise<AdminStats> {
+      const { data, error } = await supabase.rpc('get_admin_stats');
+      if (error) throw error;
+      return data as AdminStats;
+    },
+
+    /** Tüm kullanıcıları getir */
+    async getUsers(opts?: { page?: number; limit?: number; search?: string }) {
+      const page = opts?.page || 1;
+      const limit = opts?.limit || 20;
+      const from = (page - 1) * limit;
+
+      let query = supabase
+        .from('profiles')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, from + limit - 1);
+
+      if (opts?.search) {
+        query = query.or(`email.ilike.%${opts.search}%,full_name.ilike.%${opts.search}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { users: data || [], total: count || 0 };
+    },
+
+    /** Kullanıcı rolünü değiştir */
+    async updateUserRole(userId: string, role: 'user' | 'admin') {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role })
+        .eq('id', userId);
+      if (error) throw error;
+    },
+
+    /** Tüm gezileri getir (tüm kullanıcılar) */
+    async getTrips(opts?: { page?: number; limit?: number; search?: string; publicOnly?: boolean }) {
+      const page = opts?.page || 1;
+      const limit = opts?.limit || 20;
+      const from = (page - 1) * limit;
+
+      let query = supabase
+        .from('trips')
+        .select('id, title, destination, start_date, end_date, created_at, is_public, views_count, likes_count, user_id', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, from + limit - 1);
+
+      if (opts?.search) {
+        query = query.ilike('title', `%${opts.search}%`);
+      }
+      if (opts?.publicOnly) {
+        query = query.eq('is_public', true);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { trips: data || [], total: count || 0 };
+    },
+
+    /** Geziyi sil (admin) */
+    async deleteTrip(tripId: string) {
+      const { error } = await supabase.from('trips').delete().eq('id', tripId);
+      if (error) throw error;
+    },
+
+    /** Rehberi yayından kaldır */
+    async unpublishTrip(tripId: string) {
+      const { error } = await supabase
+        .from('trips')
+        .update({ is_public: false, published_at: null })
+        .eq('id', tripId);
+      if (error) throw error;
+    },
+
+    /** Cache istatistikleri */
+    async getCacheStats() {
+      const [placesRes, searchRes] = await Promise.all([
+        supabase.from('places_cache').select('id', { count: 'exact', head: true }),
+        supabase.from('search_cache').select('id', { count: 'exact', head: true }),
+      ]);
+      return {
+        places_count: placesRes.count || 0,
+        search_count: searchRes.count || 0,
+      };
+    },
+
+    /** Cache'i temizle */
+    async clearCache(type: 'places' | 'search' | 'all') {
+      if (type === 'places' || type === 'all') {
+        await supabase.from('places_cache').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      }
+      if (type === 'search' || type === 'all') {
+        await supabase.from('search_cache').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      }
+    },
+
+    /** Son cached yerler */
+    async getRecentCachedPlaces(limit = 10) {
+      const { data } = await supabase
+        .from('places_cache')
+        .select('place_id, name, category, rating, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return data || [];
+    },
   },
 };
 
