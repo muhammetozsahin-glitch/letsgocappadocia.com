@@ -21,10 +21,13 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
 
+  // ── In-memory cache'ler — session boyunca aynı sorgu/yer için API'ye gitme ──
+  const predictionsCache = useRef<Map<string, google.maps.places.AutocompletePrediction[]>>(new Map());
+  const detailsCache = useRef<Map<string, Place>>(new Map());
+
   useEffect(() => {
     if (window.google && !autocompleteService.current) {
       autocompleteService.current = new window.google.maps.places.AutocompleteService();
-      // PlacesService requires an HTML element, even if invisible
       const dummyElement = document.createElement('div');
       placesService.current = new window.google.maps.places.PlacesService(dummyElement);
     }
@@ -48,16 +51,28 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
       return;
     }
 
+    const cacheKey = value.toLowerCase().trim();
+
+    // 1. Autocomplete cache'te var mı?
+    const cached = predictionsCache.current.get(cacheKey);
+    if (cached) {
+      setResults(cached);
+      setIsOpen(true);
+      return;
+    }
+
     setLoading(true);
     autocompleteService.current.getPlacePredictions(
       { 
         input: value,
-        locationBias: { lat: 38.6431, lng: 34.8347, radius: 50000 }, // Bias towards Cappadocia
+        locationBias: { lat: 38.6431, lng: 34.8347, radius: 50000 },
         componentRestrictions: { country: 'tr' }
       },
       (predictions, status) => {
         setLoading(false);
         if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+          // 2. Sonuçları cache'e yaz
+          predictionsCache.current.set(cacheKey, predictions);
           setResults(predictions);
           setIsOpen(true);
         } else {
@@ -71,6 +86,16 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
   const handleSelectResult = (prediction: google.maps.places.AutocompletePrediction) => {
     if (!placesService.current) return;
 
+    // 1. Details cache'te var mı?
+    const cachedPlace = detailsCache.current.get(prediction.place_id);
+    if (cachedPlace) {
+      onPlaceSelect(cachedPlace);
+      setQuery('');
+      setIsOpen(false);
+      setResults([]);
+      return;
+    }
+
     setLoading(true);
     placesService.current.getDetails(
       { 
@@ -80,6 +105,18 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
       (place, status) => {
         setLoading(false);
         if (status === window.google.maps.places.PlacesServiceStatus.OK && place && place.geometry?.location) {
+          // photo_reference: doğrudan Google URL yerine Edge Function proxy URL kullan
+          let photoRef: string | undefined;
+          const rawPhotoUrl = place.photos?.[0]?.getUrl({ maxWidth: 800 });
+          if (rawPhotoUrl) {
+            try {
+              const ref = new URL(rawPhotoUrl).searchParams.get('photo_reference');
+              photoRef = ref || rawPhotoUrl; // reference varsa onu, yoksa URL'i sakla
+            } catch {
+              photoRef = rawPhotoUrl;
+            }
+          }
+
           const newPlace: Place = {
             place_id: prediction.place_id,
             name: place.name || '',
@@ -87,13 +124,17 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
             lng: place.geometry.location.lng(),
             rating: place.rating,
             formatted_address: place.formatted_address || '',
-            photo_reference: place.photos?.[0]?.getUrl(), // Note: In a real app, you'd store the reference or proxy the URL
+            photo_reference: photoRef,
             description: place.types?.join(', ') || 'Turistik Nokta',
             category: (place.types?.[0] || 'point_of_interest').replace(/_/g, ' '),
             estimated_duration_minutes: 60,
             start_time: '10:00',
             end_time: '11:00',
           };
+
+          // 2. Details cache'e yaz — aynı yer tekrar seçilirse API'ye gitme
+          detailsCache.current.set(prediction.place_id, newPlace);
+
           onPlaceSelect(newPlace);
           setQuery('');
           setIsOpen(false);
