@@ -272,9 +272,9 @@ const api = {
 
     if (!data || !data.place_ids?.length) return null;
 
-    // 24 saat geçerlilik
+    // 7 gün geçerlilik — Kapadokya yerleri sık değişmez, 24 saat gereksiz kısaydı
     const age = Date.now() - new Date(data.created_at).getTime();
-    if (age > 24 * 60 * 60 * 1000) return null;
+    if (age > 7 * 24 * 60 * 60 * 1000) return null;
 
     return data.place_ids;
   },
