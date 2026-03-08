@@ -278,7 +278,19 @@ export default function ExplorePage() {
         for (const r of results.slice(0, 20)) {
           if (!r.geometry?.location || !r.place_id) continue;
 
-          const photoUrl = r.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) || null;
+          // photo_reference'i URL'den çıkar — Edge Function proxy üzerinden cache'lenir
+          const rawPhotoUrl = r.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) || null;
+          let photoRef: string | undefined;
+          if (rawPhotoUrl) {
+            try {
+              const ref = new URL(rawPhotoUrl).searchParams.get('photo_reference');
+              photoRef = ref || undefined;
+            } catch {
+              photoRef = undefined;
+            }
+          }
+          // Anlık gösterim için getUrl() kullan, DB'ye kaydedilecek olan ise photoRef
+          const photoUrl = rawPhotoUrl;
 
           const item: DiscoverPlace = {
             place_id: r.place_id,
@@ -289,7 +301,7 @@ export default function ExplorePage() {
             rating: r.rating,
             user_ratings_total: r.user_ratings_total,
             photo_url: photoUrl || undefined,
-            photo_reference: r.photos?.[0]?.getUrl({ maxWidth: 800 }) || undefined,
+            photo_reference: photoRef,
             category: getCategoryLabel(r.types),
             types: r.types,
             price_level: r.price_level,
@@ -298,7 +310,7 @@ export default function ExplorePage() {
           placeIds.push(r.place_id);
           mapped.push(item);
 
-          // Arka planda cache'e yaz
+          // Arka planda cache'e yaz (photo_reference olarak extract edilen değeri sakla)
           api.savePlaceToCache({
             place_id: r.place_id,
             name: r.name || '',
@@ -307,7 +319,7 @@ export default function ExplorePage() {
             lng: r.geometry.location.lng(),
             rating: r.rating,
             user_ratings_total: r.user_ratings_total,
-            photo_reference: photoUrl || undefined,
+            photo_reference: photoRef,
             types: r.types,
             price_level: r.price_level,
             category: getCategoryLabel(r.types),
