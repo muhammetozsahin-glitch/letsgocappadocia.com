@@ -54,6 +54,9 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
 
+  // ── In-memory cache: session boyunca tekrar çağrı yapılmaz ───────────────
+  const placeDetailCacheRef = useRef<Map<string, PlaceDetail>>(new Map());
+
   // Detail panel state
   const [selectedPOI, setSelectedPOI] = useState<SelectedPOI | null>(null);
   const [placeDetail, setPlaceDetail] = useState<PlaceDetail | null>(null);
@@ -73,9 +76,76 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
     setAdded(false);
   }, [itineraryKey]);
 
-  // ── Fetch rich details via Google Places API ─────────────────────────────
+  // ── Detay nesnesini Google API yanıtından oluşturur ──────────────────────
+  const buildPlaceDetail = useCallback((
+    place: google.maps.places.PlaceResult,
+    poi: SelectedPOI
+  ): PlaceDetail => {
+    const typeLabels: Record<string, string> = {
+      tourist_attraction: 'Turistik bir cazibe noktası — ziyaret değer.',
+      museum: 'Tarihi ve kültürel bir müze deneyimi sunar.',
+      restaurant: 'Yerel lezzetleri keşfetmek için harika bir mekan.',
+      park: 'Doğayla iç içe dinlenme ve yürüyüş imkânı.',
+      lodging: 'Konforlu konaklama seçeneği.',
+      natural_feature: 'Eşsiz doğal güzelliğiyle öne çıkan bir yer.',
+      church: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
+      mosque: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
+      point_of_interest: 'Bölgenin önemli ilgi noktalarından biri.',
+    };
+
+    const whyVisit: string[] = [];
+    if ((poi as any).why_visit) {
+      whyVisit.push((poi as any).why_visit);
+    } else {
+      for (const t of (place.types || [])) {
+        const label = typeLabels[t];
+        if (label) { whyVisit.push(label); break; }
+      }
+    }
+
+    const tips: string[] = [];
+    if ((poi as any).personal_tip) tips.push((poi as any).personal_tip);
+    const reviewTips = (place.reviews || [])
+      .filter(r => (r.rating ?? 0) >= 4 && r.text?.length > 30)
+      .slice(0, tips.length > 0 ? 1 : 2)
+      .map(r => `"${r.text.slice(0, 120).trim()}…"`);
+    tips.push(...reviewTips);
+
+    const rawSummary = (place as any).editorial_summary?.overview || '';
+    const isTurkish = /[çğışöüÇĞİŞÖÜ]/.test(rawSummary) || !/[a-zA-Z]{4,}/.test(rawSummary);
+    const summary = isTurkish ? rawSummary : '';
+
+    return {
+      place_id: place.place_id || poi.place_id,
+      name: place.name || poi.name,
+      summary,
+      rating: place.rating,
+      total_ratings: place.user_ratings_total,
+      is_open_now: place.opening_hours?.isOpen?.() ?? null,
+      opening_hours: place.opening_hours?.weekday_text || null,
+      why_visit: whyVisit,
+      tips,
+      reviews: (place.reviews || []).map(r => ({
+        author: r.author_name,
+        rating: r.rating,
+        text: r.text,
+        time: r.relative_time_description,
+      })),
+    };
+  }, []);
+
+  // ── Fetch rich details — önce memory cache, yoksa Google API ─────────────
   const fetchPlaceDetail = useCallback((poi: SelectedPOI) => {
     if (!placesServiceRef.current) return;
+
+    // 1. Memory cache'te var mı?
+    const cached = placeDetailCacheRef.current.get(poi.place_id);
+    if (cached) {
+      setPlaceDetail(cached);
+      setDetailLoading(false);
+      return;
+    }
+
     setDetailLoading(true);
     setPlaceDetail(null);
     setActiveTab('about');
@@ -93,66 +163,14 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
         setDetailLoading(false);
         if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
 
-        const typeLabels: Record<string, string> = {
-          tourist_attraction: 'Turistik bir cazibe noktası — ziyaret değer.',
-          museum: 'Tarihi ve kültürel bir müze deneyimi sunar.',
-          restaurant: 'Yerel lezzetleri keşfetmek için harika bir mekan.',
-          park: 'Doğayla iç içe dinlenme ve yürüyüş imkânı.',
-          lodging: 'Konforlu konaklama seçeneği.',
-          natural_feature: 'Eşsiz doğal güzelliğiyle öne çıkan bir yer.',
-          church: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
-          mosque: 'Tarihi ve mimari açıdan ilgi çekici bir yapı.',
-          point_of_interest: 'Bölgenin önemli ilgi noktalarından biri.',
-        };
+        const detail = buildPlaceDetail(place, poi);
 
-        // why_visit: önce AI'dan gelen poi.why_visit, yoksa tip etiketlerine bak
-        const whyVisit: string[] = [];
-        if ((poi as any).why_visit) {
-          whyVisit.push((poi as any).why_visit);
-        } else {
-          for (const t of (place.types || [])) {
-            const label = typeLabels[t];
-            if (label) { whyVisit.push(label); break; }
-          }
-        }
-
-        // Tips: önce AI'dan gelen personal_tip, sonra Türkçe yorumlar
-        const tips: string[] = [];
-        if ((poi as any).personal_tip) {
-          tips.push((poi as any).personal_tip);
-        }
-        const reviewTips = (place.reviews || [])
-          .filter(r => (r.rating ?? 0) >= 4 && r.text?.length > 30)
-          .slice(0, tips.length > 0 ? 1 : 2)
-          .map(r => `"${r.text.slice(0, 120).trim()}…"`);
-        tips.push(...reviewTips);
-
-        // summary: editorial_summary sadece Türkçe ise göster, değilse boş bırak
-        const rawSummary = (place as any).editorial_summary?.overview || '';
-        const isTurkish = /[çğışöüÇĞİŞÖÜ]/.test(rawSummary) || !/[a-zA-Z]{4,}/.test(rawSummary);
-        const summary = isTurkish ? rawSummary : '';
-
-        const detail: PlaceDetail = {
-          place_id: place.place_id || poi.place_id,
-          name: place.name || poi.name,
-          summary,
-          rating: place.rating,
-          total_ratings: place.user_ratings_total,
-          is_open_now: place.opening_hours?.isOpen?.() ?? null,
-          opening_hours: place.opening_hours?.weekday_text || null,
-          why_visit: whyVisit,
-          tips,
-          reviews: (place.reviews || []).map(r => ({
-            author: r.author_name,
-            rating: r.rating,
-            text: r.text,
-            time: r.relative_time_description,
-          })),
-        };
+        // 2. Cache'e yaz — aynı yer tekrar açılırsa API çağrısı yapılmaz
+        placeDetailCacheRef.current.set(poi.place_id, detail);
         setPlaceDetail(detail);
       }
     );
-  }, []);
+  }, [buildPlaceDetail]);
 
   // ── Handle add ────────────────────────────────────────────────────────────
   const handleAdd = useCallback(() => {
@@ -209,7 +227,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           placesServiceRef.current = new google.maps.places.PlacesService(map);
 
           // ── POI tıklama ───────────────────────────────────────────────────
-          // POI tiklama - her zaman calisir, detay panelini acar
+          // TEK getDetails çağrısı: tüm alanlar bir arada isteniyor (önceden 2 ayrı çağrıydı)
           map.addListener('click', (e: google.maps.MapMouseEvent & { placeId?: string }) => {
             if (!e.placeId) return;
             e.stop?.();
@@ -217,13 +235,39 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
             const placeId = e.placeId;
             setAdded(false);
 
+            // Memory cache'te varsa API'ye gitme
+            const cached = placeDetailCacheRef.current.get(placeId);
+            if (cached) {
+              setSelectedPOI({
+                place_id: placeId,
+                name: cached.name,
+                lat: 0,
+                lng: 0,
+                photoUrl: '',
+                category: cached.why_visit[0] || '',
+                rating: cached.rating,
+              });
+              setPlaceDetail(cached);
+              setActiveTab('about');
+              return;
+            }
+
+            setDetailLoading(true);
+            setPlaceDetail(null);
+            setActiveTab('about');
+
+            // Tüm alanlar tek çağrıda — eski 2 çağrı birleştirildi
             placesServiceRef.current?.getDetails(
               {
                 placeId,
-                fields: ['place_id', 'name', 'formatted_address', 'geometry', 'rating', 'photos', 'types'],
+                fields: [
+                  'place_id', 'name', 'editorial_summary', 'rating', 'user_ratings_total',
+                  'opening_hours', 'reviews', 'types', 'formatted_address', 'geometry', 'photos',
+                ],
                 language: 'tr',
               } as any,
               (place, status) => {
+                setDetailLoading(false);
                 if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) return;
 
                 const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 600 }) || '';
@@ -240,8 +284,12 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                   rating: place.rating,
                 };
 
+                // Detay nesnesini de aynı yanıttan oluştur — ikinci çağrı yok
+                const detail = buildPlaceDetail(place, poi);
+                placeDetailCacheRef.current.set(poi.place_id, detail);
+
                 setSelectedPOI(poi);
-                fetchPlaceDetail(poi);
+                setPlaceDetail(detail);
               }
             );
           });
