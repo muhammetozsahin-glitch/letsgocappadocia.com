@@ -1,16 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// SEYAHAT ACENTASI TİP TANIMLARI
-// Bu dosyayı src/types/agency.ts olarak kaydedin
+// DOSYA: src/types/agency.ts
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Temel enumlar
 export type ServiceType = 'tour' | 'custom_tour' | 'activity' | 'balloon' | 'hotel' | 'transfer' | 'package';
 export type BookingType = 'group' | 'private';
 export type SupplierType = 'own' | 'supplier';
-export type ReservationStatus = 'pending' | 'confirmed' | 'paid' | 'in_progress' | 'completed' | 'cancelled' | 'refunded' | 'no_show';
-export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'partial';
 
-// Tur güzergah öğesi
 export interface TourItineraryItem {
   time: string;
   title: string;
@@ -21,7 +16,6 @@ export interface TourItineraryItem {
   place_id?: string;
 }
 
-// Tur tipi
 export interface Tour {
   id: string;
   code: string;
@@ -82,7 +76,6 @@ export interface Tour {
   updated_at: string;
 }
 
-// Tur müsaitlik
 export interface TourAvailability {
   id: string;
   tour_id: string;
@@ -94,12 +87,9 @@ export interface TourAvailability {
   private_available: boolean;
   private_booked: boolean;
   private_price_override?: number;
-  assigned_guide_id?: string;
-  assigned_driver_id?: string;
   status: string;
 }
 
-// Balon uçuşu
 export interface BalloonFlight {
   id: string;
   supplier_id: string;
@@ -117,8 +107,6 @@ export interface BalloonFlight {
   cost_price: number;
   sell_price_adult: number;
   sell_price_child?: number;
-  child_age_min?: number;
-  child_age_max?: number;
   cover_image?: string;
   gallery_images?: string[];
   is_active: boolean;
@@ -127,14 +115,12 @@ export interface BalloonFlight {
   currency: string;
 }
 
-// Aktivite zaman dilimi
 export interface ActivityTimeSlot {
   time: string;
   label: string;
   label_en?: string;
 }
 
-// Aktivite
 export interface Activity {
   id: string;
   name: string;
@@ -154,8 +140,6 @@ export interface Activity {
   cost_price?: number;
   sell_price_adult: number;
   sell_price_child?: number;
-  child_age_min?: number;
-  child_age_max?: number;
   min_participants?: number;
   max_participants?: number;
   min_age?: number;
@@ -163,9 +147,6 @@ export interface Activity {
   excludes?: string[];
   requirements?: string[];
   location?: string;
-  location_lat?: number;
-  location_lng?: number;
-  meeting_point?: string;
   cover_image?: string;
   gallery_images?: string[];
   is_active: boolean;
@@ -174,7 +155,6 @@ export interface Activity {
   currency: string;
 }
 
-// Sepet öğesi
 export interface CartItem {
   id: string;
   item_type: ServiceType;
@@ -191,8 +171,5 @@ export interface CartItem {
   child_unit_price: number;
   line_total: number;
   cover_image?: string;
-  vehicle_type?: string;
-  room_type?: string;
-  nights?: number;
   special_requests?: string;
 }
