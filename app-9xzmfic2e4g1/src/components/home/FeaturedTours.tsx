@@ -1,51 +1,79 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { TourCard } from '../tours/TourCard';
-import { Button } from '../ui/button';
-import { ArrowRight } from 'lucide-react';
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOSYA: src/components/home/FeaturedTours.tsx
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// This is a placeholder component for featured tours.
-// It assumes a list of tour objects is available or passed via props.
-export const FeaturedTours = () => {
-  // Mock data structure - in a real app this would come from an API/hook
-  const featuredTours = [
-    {
-      id: '1',
-      title: 'Cappadocia Sunrise Balloon Flight',
-      slug: 'cappadocia-balloon-flight',
-      description: 'Experience the magic of Cappadocia from the skies at sunrise.',
-      price: 250,
-      image: '/images/tours/balloon.jpg',
-      duration: '1.5 hours',
-    },
-    {
-      id: '2',
-      title: 'Red Valley Sunset Hike',
-      slug: 'red-valley-hike',
-      description: 'Stunning views of the Red Valley at golden hour.',
-      price: 50,
-      image: '/images/tours/hike.jpg',
-      duration: '3 hours',
-    },
-  ];
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { TourCard } from '@/components/tours/TourCard';
+import { toursApi } from '@/db/agency-api';
+import type { Tour } from '@/types/agency';
+
+export function FeaturedTours() {
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTours();
+  }, []);
+
+  const loadTours = async () => {
+    try {
+      const data = await toursApi.getFeatured();
+      setTours(data.slice(0, 3)); // Max 3 tur göster
+    } catch (err) {
+      console.error('Error loading tours:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <section className="py-12 px-4 md:px-8 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-3xl font-bold tracking-tight">Featured Tours</h2>
-          <Button variant="ghost" asChild>
-            <Link to="/turlar" className="flex items-center gap-2">
-              View All <ArrowRight className="w-4 h-4" />
+    <section className="py-16 md:py-24 bg-gradient-to-b from-background to-muted/30">
+      <div className="container mx-auto px-4">
+        {/* Başlık */}
+        <div className="text-center mb-12">
+          <Badge variant="outline" className="mb-4">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Popüler Turlar
+          </Badge>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Günlük Turlarımız
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Kırmızı, Yeşil ve Mavi turlarımızla Kapadokya'nın eşsiz güzelliklerini keşfedin
+          </p>
+        </div>
+
+        {/* Tur Kartları */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-muted animate-pulse rounded-2xl h-[400px]" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            {tours.map((tour) => (
+              <TourCard key={tour.id} tour={tour} />
+            ))}
+          </div>
+        )}
+
+        {/* CTA */}
+        <div className="text-center">
+          <Button size="lg" asChild>
+            <Link to="/turlar">
+              Tüm Turları Gör
+              <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredTours.map((tour) => (
-            <TourCard key={tour.id} tour={tour as any} />
-          ))}
         </div>
       </div>
     </section>
   );
-};
+}
+
+export default FeaturedTours;
