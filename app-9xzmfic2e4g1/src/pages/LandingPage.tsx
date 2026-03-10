@@ -1,19 +1,23 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOSYA: src/pages/LandingPage.tsx (GÜNCELLENMİŞ)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import { motion, useScroll, useTransform } from 'framer-motion';
+import {
+  ArrowRight, ArrowUpRight, Calendar, Compass, Globe, type LucideIcon, MapPin, ShieldCheck, 
+  Sparkles, Star, Zap, Cloud, Ticket,
+} from 'lucide-react';
+import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import {
-  Sparkles, MapPin, Calendar, Compass, ShieldCheck, Zap,
-  ArrowRight, Star, ArrowUpRight, Play, Globe,
-  Heart, Camera, Mountain, Coffee, Shield, Eye, type LucideIcon,
-} from 'lucide-react';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { useRef } from 'react';
 import { useSiteSettings } from '@/hooks/use-site-settings';
+import { FeaturedTours } from '@/components/home/FeaturedTours';
 
 // Icon mapper: DB'den gelen string → React component
 const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles, MapPin, Calendar, Compass, ShieldCheck, Zap,
-  Star, Globe, Heart, Camera, Mountain, Coffee, Shield, Eye,
-  ArrowRight, ArrowUpRight, Play,
+  Star, Globe,
+  ArrowRight, ArrowUpRight,
 };
 
 const FeatureCard = ({ icon: Icon, title, description, index }: { icon: LucideIcon; title: string; description: string; index: number }) => (
@@ -21,14 +25,14 @@ const FeatureCard = ({ icon: Icon, title, description, index }: { icon: LucideIc
     initial={{ opacity: 0, y: 20 }}
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true }}
-    transition={{ duration: 0.5, delay: index * 0.1 }}
-    className="group p-6 bg-white/40 dark:bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-white/10 shadow-luxury hover:shadow-xl transition-luxury"
+    transition={{ duration: 0.28, delay: index * 0.06, ease: 'easeOut' }}
+    className="surface-card group p-7"
   >
-    <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-luxury">
+    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-luxury group-hover:scale-105">
       <Icon className="h-6 w-6 text-primary" />
     </div>
-    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 tracking-tight">{title}</h3>
-    <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm font-medium">{description}</p>
+    <h3 className="mb-2 font-display text-2xl font-bold tracking-tight text-foreground">{title}</h3>
+    <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
   </motion.div>
 );
 
@@ -38,81 +42,103 @@ const STAT_ICONS = [Globe, Compass, MapPin, Star];
 export default function LandingPage() {
   const { settings } = useSiteSettings();
   const { hero, stats, features, cta_section, theme } = settings;
+  const heroImage = hero.bg_image || 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 200]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
+  const heroY = useTransform(scrollYProgress, [0, 1], [0, 120]);
 
   return (
     <div className="min-h-screen bg-background selection:bg-primary/20" ref={containerRef}>
       {/* Hero Section */}
-      <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
-        <motion.div style={{ y: heroY, opacity: heroOpacity }} className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-black/40 z-10" />
-          <img src={hero.bg_image} alt="Cappadocia" className="w-full h-full object-cover scale-105" />
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden">
+        <motion.div style={{ y: heroY }} className="absolute inset-0 z-0">
+          <img src={heroImage} alt="Cappadocia" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/45 to-black/25" />
         </motion.div>
 
         <div className="container relative z-20 px-6 text-center">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold mb-8 tracking-widest uppercase">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.26, ease: 'easeOut' }}
+            className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md"
+          >
             <Sparkles className="h-3.5 w-3.5 text-accent" />
             {hero.badge_text}
           </motion.div>
 
-          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-8 leading-[0.95] tracking-tighter">
-            {hero.title_line1} <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary animate-gradient">
-              {hero.title_line2}
-            </span>
+          <motion.h1
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, delay: 0.08, ease: 'easeOut' }}
+            className="mb-6 font-display text-5xl font-bold leading-[0.92] tracking-tight text-white md:text-7xl lg:text-8xl"
+          >
+            Kapadokya'yı
+            <br />
+            <span className="text-white/85">/</span>{' '}
+            <span className="text-primary">Keşfet</span>
           </motion.h1>
 
-          <motion.p initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-12 leading-relaxed font-medium italic">
-            "{hero.subtitle}"
+          <motion.p
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, delay: 0.14, ease: 'easeOut' }}
+            className="mx-auto mb-10 max-w-2xl text-base leading-relaxed text-white/80 md:text-xl"
+          >
+            AI ile kişiselleştirilmiş rota, gerçek zamanlı öneriler
           </motion.p>
 
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.6 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" className="h-14 px-8 text-lg font-bold bg-primary hover:bg-primary-dark shadow-xl shadow-primary/20 rounded-2xl transition-luxury group" asChild>
-              <Link to={hero.cta_primary_link}>
-                {hero.cta_primary_text}
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.26, delay: 0.2, ease: 'easeOut' }}
+            className="flex flex-col items-center justify-center gap-4 sm:flex-row"
+          >
+            <Button
+              size="lg"
+              className="h-14 rounded-full px-9 text-base font-semibold"
+              asChild
+            >
+              <Link to="/planner">
+                Rotanı Oluştur
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            {hero.cta_secondary_text && (
-              <button className="h-14 px-8 text-lg font-bold bg-white/10 backdrop-blur-xl border border-white/20 text-white rounded-2xl hover:bg-white/20 transition-luxury flex items-center gap-2">
-                <Play className="h-5 w-5 fill-white" />
-                {hero.cta_secondary_text}
-              </button>
-            )}
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-14 rounded-full border-white/65 bg-transparent px-9 text-base font-semibold text-white hover:bg-white/10"
+              asChild
+            >
+              <Link to="/turlar">
+                Turları İncele
+              </Link>
+            </Button>
           </motion.div>
         </div>
-
-        <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 2 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/40">
-          <div className="w-5 h-8 border-2 border-white/20 rounded-full flex justify-center p-1">
-            <div className="w-1 h-1 bg-white/40 rounded-full" />
-          </div>
-        </motion.div>
       </section>
 
       {/* Stats */}
-      <section className="py-16 bg-secondary text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
+      <section className="relative overflow-hidden bg-secondary py-16 text-white">
         <div className="container relative z-10 px-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-2 gap-8 text-center lg:grid-cols-4">
             {stats.map((stat, i) => {
               const Icon = STAT_ICONS[i % STAT_ICONS.length];
               return (
-                <motion.div key={i} initial={{ opacity: 0, scale: 0.5 }} whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }} className="space-y-3">
-                  <div className="w-10 h-10 mx-auto bg-white/5 rounded-xl flex items-center justify-center">
-                    <Icon className="h-5 w-5 text-accent" />
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.28, delay: i * 0.05, ease: 'easeOut' }}
+                  className="space-y-3"
+                >
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
+                    <Icon className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="text-3xl md:text-4xl font-black text-primary">{stat.value}</div>
-                  <div className="text-white/60 font-bold tracking-widest uppercase text-[10px]">{stat.label}</div>
+                  <div className="font-display text-4xl font-bold text-white">{stat.value}</div>
+                  <div className="meta-text text-[11px] uppercase text-white/60">{stat.label}</div>
                 </motion.div>
               );
             })}
@@ -120,21 +146,140 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 bg-background relative overflow-hidden">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          YENİ: ÖNE ÇIKAN TURLAR
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <FeaturedTours />
+
+      {/* Hizmetler Kısa Tanıtım */}
+      <section className="py-16 bg-muted/30">
         <div className="container px-6">
-          <div className="max-w-2xl mx-auto text-center mb-16 space-y-4">
-            <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}
-              className="text-primary font-black tracking-widest uppercase text-xs">
-              {features.section_badge}
+          <div className="text-center mb-12">
+            <motion.span
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+            >
+              Hizmetlerimiz
             </motion.span>
-            <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-              className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white leading-tight">
-              {features.section_title_1} <br /> <span className="text-gradient">{features.section_title_2}</span>
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.05 }}
+              className="mt-3 font-display text-3xl font-bold md:text-4xl"
+            >
+              Kapadokya Deneyiminiz İçin <span className="text-primary">Her Şey</span>
             </motion.h2>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Balon */}
+            <Link to="/balon">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="group relative h-64 rounded-3xl overflow-hidden"
+              >
+                <img 
+                  src="https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=600&h=400&fit=crop" 
+                  alt="Balon Turu"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Cloud className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-medium text-white/80">Şafak Deneyimi</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-1">Balon Turları</h3>
+                  <p className="text-sm text-white/70">180€'dan başlayan fiyatlarla</p>
+                </div>
+              </motion.div>
+            </Link>
+
+            {/* Aktiviteler */}
+            <Link to="/aktiviteler">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 }}
+                className="group relative h-64 rounded-3xl overflow-hidden"
+              >
+                <img 
+                  src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop" 
+                  alt="Aktiviteler"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Ticket className="w-5 h-5 text-orange-400" />
+                    <span className="text-sm font-medium text-white/80">Macera & Eğlence</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-1">Aktiviteler</h3>
+                  <p className="text-sm text-white/70">ATV, at binme, Türk gecesi</p>
+                </div>
+              </motion.div>
+            </Link>
+
+            {/* AI Planner */}
+            <Link to="/planner">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2 }}
+                className="group relative h-64 rounded-3xl overflow-hidden"
+              >
+                <img 
+                  src="https://images.unsplash.com/photo-1641128324972-af3212f0f6bd?w=600&h=400&fit=crop" 
+                  alt="AI Planner"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="w-5 h-5 text-purple-400" />
+                    <span className="text-sm font-medium text-white/80">Yapay Zeka</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-1">AI ile Rota Oluştur</h3>
+                  <p className="text-sm text-white/70">Kişiselleştirilmiş deneyim</p>
+                </div>
+              </motion.div>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-20">
+        <div className="container px-6">
+          <div className="mx-auto mb-14 max-w-2xl space-y-4 text-center">
+            <motion.span
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}
+              className="meta-text text-xs uppercase text-muted-foreground"
+            >
+              {features.section_badge}
+            </motion.span>
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.26, delay: 0.05, ease: 'easeOut' }}
+              className="font-display text-4xl font-bold leading-tight text-foreground md:text-5xl"
+            >
+              {features.section_title_1} <br />
+              <span className="text-primary">{features.section_title_2}</span>
+            </motion.h2>
+          </div>
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {features.items.map((feat, i) => (
               <FeatureCard
                 key={i}
@@ -149,24 +294,29 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-6">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
-          className="max-w-6xl mx-auto rounded-[2.5rem] bg-secondary p-12 lg:p-20 text-center relative overflow-hidden group">
-          <div className="absolute inset-0 opacity-20 grayscale hover:grayscale-0 transition-luxury duration-1000 group-hover:scale-105">
-            <img src={hero.bg_image} alt="CTA" className="w-full h-full object-cover" />
+      <section className="px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.28, ease: 'easeOut' }}
+          className="relative mx-auto max-w-6xl overflow-hidden rounded-[28px] bg-secondary p-12 text-center lg:p-20"
+        >
+          <div className="absolute inset-0 opacity-20">
+            <img src={heroImage} alt="CTA" className="h-full w-full object-cover" />
           </div>
-          <div className="relative z-10 space-y-8">
-            <h2 className="text-4xl lg:text-7xl font-black text-white leading-[0.95] tracking-tighter uppercase">
+          <div className="relative z-10 space-y-7">
+            <h2 className="font-display text-4xl font-bold leading-[0.95] text-white lg:text-7xl">
               {cta_section.title_1} <br /> <span className="text-primary">{cta_section.title_2}</span> {cta_section.title_3}
             </h2>
-            <p className="text-white/60 text-lg md:text-xl max-w-xl mx-auto font-medium leading-relaxed">
+            <p className="mx-auto max-w-xl text-lg leading-relaxed text-white/70 md:text-xl">
               {cta_section.description}
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Button size="lg" className="h-16 px-10 text-xl font-bold bg-primary hover:bg-primary-dark rounded-2xl shadow-2xl shadow-primary/20 transition-luxury group" asChild>
+            <div className="flex items-center justify-center pt-4">
+              <Button size="lg" className="h-14 rounded-full px-10 text-base font-semibold" asChild>
                 <Link to={cta_section.button_link} className="flex items-center gap-3">
                   {cta_section.button_text}
-                  <ArrowUpRight className="h-6 w-6 group-hover:rotate-45 transition-transform" />
+                  <ArrowUpRight className="h-5 w-5" />
                 </Link>
               </Button>
             </div>
@@ -175,29 +325,30 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-16 border-t border-border bg-background">
+      <footer className="border-t border-border/70 py-16">
         <div className="container px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
                 <MapPin className="h-5 w-5" />
               </div>
-              <span className="text-xl font-black tracking-tighter uppercase dark:text-white">
+              <span className="font-display text-2xl font-bold tracking-tight dark:text-white">
                 {theme.logo_text} <span className="text-primary">{theme.logo_accent}</span>
               </span>
             </div>
-            <div className="flex items-center gap-8 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              <Link to="/explore" className="hover:text-primary transition-colors">Keşfet</Link>
-              <Link to="/planner" className="hover:text-primary transition-colors">Planla</Link>
-              <Link to="/account" className="hover:text-primary transition-colors">Hesabım</Link>
+            <div className="meta-text flex items-center gap-8 text-[11px] uppercase text-muted-foreground">
+              <Link to="/turlar" className="hover:text-primary transition-colors">Turlar</Link>
+              <Link to="/balon" className="hover:text-primary transition-colors">Balon</Link>
+              <Link to="/aktiviteler" className="hover:text-primary transition-colors">Aktiviteler</Link>
+              <Link to="/planner" className="hover:text-primary transition-colors">AI Planner</Link>
             </div>
           </div>
-          <div className="mt-16 pt-10 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4 text-gray-500 text-xs font-medium">
+          <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border pt-10 text-xs text-muted-foreground md:flex-row">
             <p>{theme.footer_text}</p>
-            <div className="flex items-center gap-6">
+            <div className="meta-text flex items-center gap-6">
               <span>TR</span>
               <div className="h-3 w-px bg-border" />
-              <span>USD</span>
+              <span>EUR</span>
             </div>
           </div>
         </div>
