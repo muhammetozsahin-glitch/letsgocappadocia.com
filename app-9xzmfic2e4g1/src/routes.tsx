@@ -62,17 +62,17 @@ const routes: RouteConfig[] = [
     name: 'Admin',
     path: '/admin',
     element: <AdminPage />
+  },
+  {
+    name: 'Tours',
+    path: '/turlar',
+    element: <ToursPage />
+  },
+  {
+    name: 'Tour Detail',
+    path: '/tur/:slug',
+    element: <TourDetailPage />
   }
 ];
-{
-  name: 'Tours',
-  path: '/turlar',
-  element: <ToursPage />
-},
-{
-  name: 'Tour Detail',
-  path: '/tur/:slug',
-  element: <TourDetailPage />
-},
 
 export default routes;
