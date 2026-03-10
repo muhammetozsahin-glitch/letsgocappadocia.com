@@ -3,151 +3,336 @@
 // Bu dosyayı src/pages/TourDetailPage.tsx olarak kaydedin
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Users, MapPin, Check, X, Calendar, ChevronLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { 
+  Clock, Users, MapPin, Star, ChevronRight, ChevronLeft,
+  Check, X, Calendar, Info, Minus, Plus, AlertCircle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { toursApi } from '@/db/agency-api';
-import type { Tour } from '@/types/agency';
+import type { Tour, BookingType } from '@/types/agency';
 
-export function TourDetailPage() {
+// Varsayılan görseller
+const getDefaultImages = (code: string) => {
+  return [
+    'https://images.unsplash.com/photo-1641128324972-af3212f0f6bd?w=800',
+    'https://images.unsplash.com/photo-1570939274717-7eda259b50ed?w=800',
+    'https://images.unsplash.com/photo-1642427749670-f20e2e76ed8c?w=800',
+  ];
+};
+
+export default function TourDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
+  
   const [tour, setTour] = useState<Tour | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  // Rezervasyon form
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [bookingType, setBookingType] = useState<BookingType>('group');
+  const [adultCount, setAdultCount] = useState(2);
+  const [childCount, setChildCount] = useState(0);
+  
+  // Fiyat hesaplama
+  const [priceBreakdown, setPriceBreakdown] = useState<{ label: string; amount: number }[]>([]);
+  const [totalPrice, setTotalPrice] = useState(0);
 
   useEffect(() => {
-    if (slug) {
-      toursApi.getBySlug(slug).then((data) => {
-        setTour(data);
-        setLoading(false);
-      });
-    }
+    if (slug) loadTour(slug);
   }, [slug]);
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Yükleniyor...</div>;
-  }
+  useEffect(() => {
+    if (tour) {
+      const result = toursApi.calculatePrice(tour, bookingType, adultCount, childCount);
+      setPriceBreakdown(result.breakdown);
+      setTotalPrice(result.total);
+    }
+  }, [tour, bookingType, adultCount, childCount]);
 
-  if (!tour) {
+  const loadTour = async (tourSlug: string) => {
+    try {
+      setLoading(true);
+      const data = await toursApi.getBySlug(tourSlug);
+      if (data) {
+        setTour(data);
+        if (data.group_enabled) setBookingType('group');
+        else if (data.private_enabled) setBookingType('private');
+      } else {
+        setError('Tur bulunamadı');
+      }
+    } catch (err) {
+      setError('Tur yüklenirken bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Loading
+  if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <h1 className="text-4xl font-bold mb-4">Tur bulunamadı</h1>
-        <Button onClick={() => navigate('/tours')}>Turlara Dön</Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
+  // Error
+  if (error || !tour) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <AlertCircle className="w-16 h-16 text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Tur Bulunamadı</h1>
+        <Button asChild><Link to="/turlar">Turlara Dön</Link></Button>
+      </div>
+    );
+  }
+
+  const images = tour.gallery_images?.length 
+    ? [tour.cover_image, ...tour.gallery_images].filter(Boolean) as string[]
+    : getDefaultImages(tour.code);
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().split('T')[0];
+
   return (
-    <div className="min-h-screen bg-background pb-12">
-      {/* Hero Section */}
-      <div className="relative h-[60vh] overflow-hidden">
-        <img
-          src={tour.cover_image || 'https://images.unsplash.com/photo-1527838832700-5059252407fa?w=1920&h=1080&fit=crop'}
-          alt={tour.name}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute top-4 left-4">
-          <Button variant="ghost" className="text-white hover:bg-white/20" onClick={() => navigate(-1)}>
-            <ChevronLeft className="mr-2" /> Geri
-          </Button>
-        </div>
-        <div className="absolute bottom-0 left-0 w-full p-8 text-white">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">{tour.name}</h1>
-            <div className="flex gap-4">
-              <Badge className="bg-white/20 backdrop-blur-md">
-                <Clock className="w-4 h-4 mr-2" /> {tour.duration_hours} Saat
-              </Badge>
-              <Badge className="bg-white/20 backdrop-blur-md">
-                <Users className="w-4 h-4 mr-2" /> Max {tour.group_max_participants} Kişi
-              </Badge>
-            </div>
-          </div>
+    <div className="min-h-screen bg-background">
+      {/* Breadcrumb */}
+      <div className="bg-muted/50 border-b">
+        <div className="container mx-auto px-4 py-3">
+          <nav className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Link to="/" className="hover:text-primary">Ana Sayfa</Link>
+            <ChevronRight className="w-4 h-4" />
+            <Link to="/turlar" className="hover:text-primary">Turlar</Link>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-foreground font-medium">{tour.name}</span>
+          </nav>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* İçerik */}
-        <div className="md:col-span-2 space-y-8">
-          <section>
-            <h2 className="text-2xl font-bold mb-4">Açıklama</h2>
-            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{tour.description}</p>
-          </section>
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Sol Kolon */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* Galeri */}
+            <div className="relative">
+              <div className="aspect-[16/9] rounded-2xl overflow-hidden bg-muted">
+                <img src={images[currentImageIndex]} alt={tour.name} className="w-full h-full object-cover" />
+              </div>
+              
+              {images.length > 1 && (
+                <>
+                  <Button
+                    variant="secondary" size="icon"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full"
+                    onClick={() => setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="secondary" size="icon"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full"
+                    onClick={() => setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </>
+              )}
+            </div>
 
-          {/* Tur Programı */}
-          {tour.itinerary && tour.itinerary.length > 0 && (
-            <section>
-              <h2 className="text-2xl font-bold mb-4">Tur Programı</h2>
-              <div className="space-y-4">
-                {tour.itinerary.map((item, index) => (
-                  <div key={index} className="flex gap-4">
-                    <div className="min-w-[80px] font-mono text-primary font-bold">{item.time}</div>
-                    <div>
-                      <h4 className="font-semibold">{item.title}</h4>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+            {/* Başlık */}
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-4">{tour.name}</h1>
+              <div className="flex flex-wrap gap-4 text-muted-foreground mb-6">
+                <div className="flex items-center gap-1.5"><Clock className="w-5 h-5" /><span>{tour.duration_hours} saat</span></div>
+                <div className="flex items-center gap-1.5"><Users className="w-5 h-5" /><span>Max {tour.group_max_participants} kişi</span></div>
+                <div className="flex items-center gap-1.5"><MapPin className="w-5 h-5" /><span>Göreme</span></div>
+                <div className="flex items-center gap-1.5"><Star className="w-5 h-5 text-amber-500 fill-amber-500" /><span>4.9</span></div>
+              </div>
+              <p className="text-lg text-muted-foreground">{tour.short_description}</p>
+            </div>
+
+            {/* Tabs */}
+            <Tabs defaultValue="itinerary">
+              <TabsList className="w-full grid grid-cols-3">
+                <TabsTrigger value="itinerary">Güzergah</TabsTrigger>
+                <TabsTrigger value="includes">Dahil / Hariç</TabsTrigger>
+                <TabsTrigger value="info">Bilgiler</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="itinerary" className="mt-6">
+                <Card>
+                  <CardHeader><CardTitle>Günlük Program</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {tour.itinerary.map((item, index) => (
+                        <div key={index} className="flex gap-4">
+                          <div className="w-16 h-8 rounded bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                            {item.time}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold">{item.title}</h4>
+                            {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="includes" className="mt-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader><CardTitle className="text-emerald-600 flex items-center gap-2"><Check className="w-5 h-5" />Dahil</CardTitle></CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {tour.includes?.map((item, i) => (
+                          <li key={i} className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader><CardTitle className="text-red-600 flex items-center gap-2"><X className="w-5 h-5" />Hariç</CardTitle></CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {tour.excludes?.map((item, i) => (
+                          <li key={i} className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" />{item}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="info" className="mt-6">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div dangerouslySetInnerHTML={{ __html: tour.description || '' }} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Sağ Kolon - Rezervasyon */}
+          <div className="lg:col-span-1">
+            <Card className="sticky top-24 shadow-xl border-2">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Kişi başı</p>
+                    <div className="text-3xl font-bold text-primary">{tour.group_price_adult}€</div>
+                  </div>
+                  {tour.private_enabled && <Badge variant="outline">Özel tur mevcut</Badge>}
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {/* Tarih */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2"><Calendar className="w-4 h-4" />Tarih Seçin</Label>
+                  <Input type="date" min={minDate} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                </div>
+
+                {/* Tur Tipi */}
+                <div>
+                  <Label className="mb-3 block">Tur Tipi</Label>
+                  <RadioGroup value={bookingType} onValueChange={(val) => setBookingType(val as BookingType)} className="space-y-3">
+                    {tour.group_enabled && (
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                        <RadioGroupItem value="group" id="group" />
+                        <Label htmlFor="group" className="flex-1 cursor-pointer">
+                          <div className="font-medium">Grup Turu</div>
+                          <div className="text-sm text-muted-foreground">Diğer misafirlerle birlikte</div>
+                        </Label>
+                        <div className="font-semibold text-primary">{tour.group_price_adult}€</div>
+                      </div>
+                    )}
+                    {tour.private_enabled && (
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                        <RadioGroupItem value="private" id="private" />
+                        <Label htmlFor="private" className="flex-1 cursor-pointer">
+                          <div className="font-medium">Özel Tur</div>
+                          <div className="text-sm text-muted-foreground">Sadece sizin için</div>
+                        </Label>
+                        <div className="font-semibold text-primary">{tour.private_price_1_3}€+</div>
+                      </div>
+                    )}
+                  </RadioGroup>
+                </div>
+
+                {/* Kişi Sayısı */}
+                <div className="space-y-4">
+                  <Label>Katılımcılar</Label>
+                  
+                  {/* Yetişkin */}
+                  <div className="flex items-center justify-between">
+                    <div><div className="font-medium">Yetişkin</div><div className="text-sm text-muted-foreground">13+ yaş</div></div>
+                    <div className="flex items-center gap-3">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setAdultCount(Math.max(1, adultCount - 1))} disabled={adultCount <= 1}><Minus className="w-4 h-4" /></Button>
+                      <span className="w-8 text-center font-medium">{adultCount}</span>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setAdultCount(adultCount + 1)}><Plus className="w-4 h-4" /></Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
 
-          {/* Dahil / Hariç */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <section>
-              <h3 className="font-bold text-lg mb-3 flex items-center text-emerald-600">
-                <Check className="w-5 h-5 mr-2" /> Dahil Olanlar
-              </h3>
-              <ul className="space-y-2">
-                {tour.includes?.map((item, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
-                    • {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-            <section>
-              <h3 className="font-bold text-lg mb-3 flex items-center text-red-600">
-                <X className="w-5 h-5 mr-2" /> Hariç Olanlar
-              </h3>
-              <ul className="space-y-2">
-                {tour.excludes?.map((item, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
-                    • {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        </div>
+                  {/* Çocuk */}
+                  <div className="flex items-center justify-between">
+                    <div><div className="font-medium">Çocuk</div><div className="text-sm text-muted-foreground">7-12 yaş</div></div>
+                    <div className="flex items-center gap-3">
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setChildCount(Math.max(0, childCount - 1))} disabled={childCount <= 0}><Minus className="w-4 h-4" /></Button>
+                      <span className="w-8 text-center font-medium">{childCount}</span>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setChildCount(childCount + 1)}><Plus className="w-4 h-4" /></Button>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Rezervasyon Paneli */}
-        <div className="md:col-span-1">
-          <div className="sticky top-24 bg-card rounded-xl border p-6 shadow-sm">
-            <div className="text-sm text-muted-foreground mb-1">Başlangıç Fiyatı</div>
-            <div className="text-3xl font-bold text-primary mb-6">{tour.group_price_adult} €</div>
-            
-            <Button className="w-full mb-4">
-              <Calendar className="w-4 h-4 mr-2" /> Müsaitlik Sorgula
-            </Button>
-            
-            <Separator className="my-4" />
-            
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span>Buluşma Noktası: {tour.meeting_point || 'Belirtilmemiş'}</span>
-              </div>
-            </div>
+                <Separator />
+
+                {/* Fiyat Özeti */}
+                <div className="space-y-2">
+                  {priceBreakdown.map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{item.label}</span>
+                      <span>{item.amount.toFixed(2)}€</span>
+                    </div>
+                  ))}
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Toplam</span>
+                    <span className="text-primary">{totalPrice.toFixed(2)}€</span>
+                  </div>
+                </div>
+
+                {/* Rezervasyon Butonu */}
+                <Button className="w-full h-12 text-lg" size="lg">
+                  Rezervasyon Yap
+                </Button>
+
+                {/* Güvence */}
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />48 saat öncesine kadar ücretsiz iptal</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Güvenli online ödeme</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Anında onay</div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-export default TourDetailPage;
