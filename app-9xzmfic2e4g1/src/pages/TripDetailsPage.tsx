@@ -1,3 +1,4 @@
+import { TripBookingPanel } from '@/components/trip/TripBookingPanel';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { Trip, Place, ItineraryDay } from '@/db/api';
@@ -669,6 +670,14 @@ export default function TripDetailsPage() {
         onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
         existingPlaceIds={existingPlaceIds}
       />
+      {/* ── Satın Alma Paneli ──────────────────────────── */}
+      {trip && (
+        <TripBookingPanel
+          tripTitle={trip.title}
+          tripDays={trip.itinerary.days.length}
+          tripPlaces={trip.itinerary.days.reduce((sum, day) => sum + day.items.length, 0)}
+        />
+      )}
     </div>
   );
 }
