@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// DOSYA: src/routes.tsx (TÜM ROTALAR)
+// DOSYA: src/routes.tsx (TÜM ROTALAR - GÜNCEL)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import LandingPage from './pages/LandingPage';
@@ -10,14 +10,22 @@ import ExplorePage from './pages/ExplorePage';
 import LoginPage from './pages/LoginPage';
 import GuidesPage from './pages/GuidesPage';
 import GuideDetailPage from './pages/GuideDetailPage';
-// Yeni Sayfalar
+// Tur Sayfaları
 import ToursPage from './pages/ToursPage';
 import TourDetailPage from './pages/TourDetailPage';
+// Balon Sayfaları
 import BalloonsPage from './pages/BalloonsPage';
+import BalloonDetailPage from './pages/BalloonDetailPage';
+// Aktivite Sayfaları
 import ActivitiesPage from './pages/ActivitiesPage';
+import ActivityDetailPage from './pages/ActivityDetailPage';
+// Rezervasyon Sayfaları
+import CheckoutPage from './pages/CheckoutPage';
+import BookingConfirmationPage from './pages/BookingConfirmationPage';
 // Admin Sayfaları
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminToursPage from './pages/admin/AdminToursPage';
+import AdminTourForm from './pages/admin/AdminTourForm';
 import type { ReactNode } from 'react';
 
 interface RouteConfig {
@@ -49,11 +57,32 @@ const routes: RouteConfig[] = [
     path: '/balon',
     element: <BalloonsPage />
   },
+  {
+    name: 'Balloon Detail',
+    path: '/balon/:slug',
+    element: <BalloonDetailPage />
+  },
   // ═══ AKTİVİTELER ═══
   {
     name: 'Activities',
     path: '/aktiviteler',
     element: <ActivitiesPage />
+  },
+  {
+    name: 'Activity Detail',
+    path: '/aktivite/:slug',
+    element: <ActivityDetailPage />
+  },
+  // ═══ REZERVASYON ═══
+  {
+    name: 'Checkout',
+    path: '/checkout',
+    element: <CheckoutPage />
+  },
+  {
+    name: 'Booking Confirmation',
+    path: '/rezervasyon/onay/:code',
+    element: <BookingConfirmationPage />
   },
   // ═══ AI PLANNER ═══
   {
@@ -102,6 +131,16 @@ const routes: RouteConfig[] = [
     name: 'Admin Tours',
     path: '/admin/turlar',
     element: <AdminToursPage />
+  },
+  {
+    name: 'Admin Tour New',
+    path: '/admin/turlar/yeni',
+    element: <AdminTourForm />
+  },
+  {
+    name: 'Admin Tour Edit',
+    path: '/admin/turlar/:id',
+    element: <AdminTourForm />
   }
 ];
 
