@@ -8,6 +8,8 @@ import GuidesPage from './pages/GuidesPage';
 import GuideDetailPage from './pages/GuideDetailPage';
 import AdminPage from './pages/AdminPage';
 import type { ReactNode } from 'react';
+import ToursPage from './pages/ToursPage';
+import TourDetailPage from './pages/TourDetailPage';
 
 interface RouteConfig {
   name: string;
