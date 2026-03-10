@@ -1,0 +1,198 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// SEYAHAT ACENTASI TİP TANIMLARI
+// Bu dosyayı src/types/agency.ts olarak kaydedin
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Temel enumlar
+export type ServiceType = 'tour' | 'custom_tour' | 'activity' | 'balloon' | 'hotel' | 'transfer' | 'package';
+export type BookingType = 'group' | 'private';
+export type SupplierType = 'own' | 'supplier';
+export type ReservationStatus = 'pending' | 'confirmed' | 'paid' | 'in_progress' | 'completed' | 'cancelled' | 'refunded' | 'no_show';
+export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'partial';
+
+// Tur güzergah öğesi
+export interface TourItineraryItem {
+  time: string;
+  title: string;
+  title_en?: string;
+  description?: string;
+  description_en?: string;
+  duration_minutes?: number;
+  place_id?: string;
+}
+
+// Tur tipi
+export interface Tour {
+  id: string;
+  code: string;
+  name: string;
+  name_en?: string;
+  slug: string;
+  short_description?: string;
+  short_description_en?: string;
+  description?: string;
+  description_en?: string;
+  
+  duration_hours: number;
+  start_time: string;
+  end_time?: string;
+  
+  group_enabled: boolean;
+  group_price_adult: number;
+  group_price_child?: number;
+  group_child_age_min?: number;
+  group_child_age_max?: number;
+  group_infant_free?: boolean;
+  group_min_participants?: number;
+  group_max_participants?: number;
+  
+  private_enabled: boolean;
+  private_price_1_3?: number;
+  private_price_4_6?: number;
+  private_price_7_10?: number;
+  private_price_11_14?: number;
+  private_price_15_plus?: number;
+  private_max_participants?: number;
+  
+  includes?: string[];
+  includes_en?: string[];
+  excludes?: string[];
+  excludes_en?: string[];
+  important_notes?: string[];
+  
+  itinerary: TourItineraryItem[];
+  
+  meeting_point?: string;
+  meeting_point_lat?: number;
+  meeting_point_lng?: number;
+  
+  cover_image?: string;
+  gallery_images?: string[];
+  video_url?: string;
+  
+  meta_title?: string;
+  meta_description?: string;
+  
+  is_active: boolean;
+  is_featured: boolean;
+  sort_order: number;
+  currency: string;
+  
+  created_at: string;
+  updated_at: string;
+}
+
+// Tur müsaitlik
+export interface TourAvailability {
+  id: string;
+  tour_id: string;
+  date: string;
+  group_available: boolean;
+  group_capacity: number;
+  group_booked: number;
+  group_price_override?: number;
+  private_available: boolean;
+  private_booked: boolean;
+  private_price_override?: number;
+  assigned_guide_id?: string;
+  assigned_driver_id?: string;
+  status: string;
+}
+
+// Balon uçuşu
+export interface BalloonFlight {
+  id: string;
+  supplier_id: string;
+  supplier?: { id: string; name: string; code?: string };
+  name: string;
+  name_en?: string;
+  slug: string;
+  description?: string;
+  description_en?: string;
+  duration_minutes: number;
+  flight_time: string;
+  passengers_per_basket?: number;
+  includes?: string[];
+  includes_en?: string[];
+  cost_price: number;
+  sell_price_adult: number;
+  sell_price_child?: number;
+  child_age_min?: number;
+  child_age_max?: number;
+  cover_image?: string;
+  gallery_images?: string[];
+  is_active: boolean;
+  is_featured: boolean;
+  sort_order: number;
+  currency: string;
+}
+
+// Aktivite zaman dilimi
+export interface ActivityTimeSlot {
+  time: string;
+  label: string;
+  label_en?: string;
+}
+
+// Aktivite
+export interface Activity {
+  id: string;
+  name: string;
+  name_en?: string;
+  slug: string;
+  short_description?: string;
+  short_description_en?: string;
+  description?: string;
+  description_en?: string;
+  category?: string;
+  supplier_type: SupplierType;
+  supplier_name?: string;
+  supplier_contact?: string;
+  supplier_cost?: number;
+  duration_minutes?: number;
+  time_slots?: ActivityTimeSlot[];
+  cost_price?: number;
+  sell_price_adult: number;
+  sell_price_child?: number;
+  child_age_min?: number;
+  child_age_max?: number;
+  min_participants?: number;
+  max_participants?: number;
+  min_age?: number;
+  includes?: string[];
+  excludes?: string[];
+  requirements?: string[];
+  location?: string;
+  location_lat?: number;
+  location_lng?: number;
+  meeting_point?: string;
+  cover_image?: string;
+  gallery_images?: string[];
+  is_active: boolean;
+  is_featured: boolean;
+  sort_order: number;
+  currency: string;
+}
+
+// Sepet öğesi
+export interface CartItem {
+  id: string;
+  item_type: ServiceType;
+  service_id: string;
+  service_name: string;
+  service_name_en?: string;
+  booking_type?: BookingType;
+  service_date: string;
+  service_time?: string;
+  adult_count: number;
+  child_count: number;
+  infant_count: number;
+  unit_price: number;
+  child_unit_price: number;
+  line_total: number;
+  cover_image?: string;
+  vehicle_type?: string;
+  room_type?: string;
+  nights?: number;
+  special_requests?: string;
+}
