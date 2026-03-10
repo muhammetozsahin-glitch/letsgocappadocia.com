@@ -425,7 +425,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           {onAddPlace && !selectedPOI && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
               <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-white/60 flex items-center gap-2">
-                <Plus className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="text-[11px] font-bold text-gray-600">Haritada bir yere tıklayarak detayları görün</span>
               </div>
             </div>
@@ -474,7 +474,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
+                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/10 flex items-center justify-center">
                       <span className="text-4xl">🗺️</span>
                     </div>
                   )}
@@ -521,7 +521,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                           {[1,2,3,4,5].map(i => (
                             <Star key={i}
                               className={cn('h-3.5 w-3.5', i <= Math.round(selectedPOI.rating || placeDetail?.rating || 0)
-                                ? 'fill-amber-400 text-amber-400'
+                                ? 'fill-accent text-accent'
                                 : 'text-gray-200 fill-gray-200'
                               )}
                             />
@@ -546,7 +546,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                         className={cn(
                           'px-3 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-t-lg transition-all border-b-2',
                           activeTab === tab
-                            ? 'text-orange-600 border-orange-600'
+                            ? 'text-primary border-primary/50'
                             : 'text-gray-400 border-transparent hover:text-gray-600'
                         )}
                       >
@@ -560,7 +560,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                 <div className="flex-1 overflow-y-auto">
                   {detailLoading ? (
                     <div className="flex flex-col items-center justify-center h-48 gap-3">
-                      <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                      <Loader2 className="h-8 w-8 text-primary animate-spin" />
                       <p className="text-xs font-bold text-gray-400">Detaylar yükleniyor...</p>
                     </div>
                   ) : placeDetail ? (
@@ -582,13 +582,13 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                           {placeDetail.why_visit?.length > 0 && (
                             <div className="space-y-2">
                               <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1.5">
-                                <ChevronRight className="h-3.5 w-3.5 text-orange-500" />
+                                <ChevronRight className="h-3.5 w-3.5 text-primary" />
                                 Neden gitmelisiniz?
                               </h4>
                               <div className="space-y-2">
                                 {placeDetail.why_visit.map((reason, i) => (
                                   <div key={i} className="flex items-start gap-2.5">
-                                    <div className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
+                                    <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
                                       {i + 1}
                                     </div>
                                     <p className="text-[12px] text-gray-700 leading-relaxed">{reason}</p>
@@ -602,13 +602,13 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                           {placeDetail.tips?.length > 0 && (
                             <div className="space-y-2">
                               <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1.5">
-                                <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                                <Lightbulb className="h-3.5 w-3.5 text-accent" />
                                 Gitmeden önce bilin
                               </h4>
-                              <div className="space-y-1.5 bg-amber-50 rounded-xl p-3 border border-amber-100">
+                              <div className="space-y-1.5 bg-accent/10 rounded-xl p-3 border border-accent/10">
                                 {placeDetail.tips.map((tip, i) => (
                                   <div key={i} className="flex items-start gap-2">
-                                    <span className="text-amber-500 mt-0.5 shrink-0 text-xs">•</span>
+                                    <span className="text-accent mt-0.5 shrink-0 text-xs">•</span>
                                     <p className="text-[12px] text-gray-700 leading-relaxed">{tip}</p>
                                   </div>
                                 ))}
@@ -644,7 +644,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                               <div key={i} className="space-y-2 pb-4 border-b border-gray-100 last:border-0">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-black text-xs shrink-0">
+                                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-black text-xs shrink-0">
                                       {review.author?.[0]?.toUpperCase() || '?'}
                                     </div>
                                     <div>
@@ -656,7 +656,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                                     {[1,2,3,4,5].map(s => (
                                       <Star key={s}
                                         className={cn('h-3 w-3', s <= (review.rating ?? 0)
-                                          ? 'fill-amber-400 text-amber-400'
+                                          ? 'fill-accent text-accent'
                                           : 'text-gray-200 fill-gray-200'
                                         )}
                                       />
@@ -693,7 +693,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
                         'w-full h-11 rounded-xl font-black text-sm gap-2 transition-all',
                         added
                           ? 'bg-green-500 hover:bg-green-500 text-white'
-                          : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-200'
+                          : 'bg-primary hover:bg-primary-dark text-white shadow-lg shadow-primary/20'
                       )}
                     >
                       {added ? (

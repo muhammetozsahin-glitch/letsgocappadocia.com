@@ -22,61 +22,39 @@ export const TransportSelector = memo(({ selectedId, onSelect }: TransportSelect
             type="button"
             initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.07, duration: 0.3, ease: 'easeOut' }}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
+            transition={{ delay: index * 0.07, duration: 0.25, ease: 'easeOut' }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.99 }}
             onClick={() => onSelect(option.id)}
             className={cn(
-              'relative group flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200 w-full overflow-hidden',
+              'relative group flex w-full items-center gap-4 overflow-hidden rounded-2xl border px-4 py-4 text-left transition-all duration-200',
               isSelected
-                ? 'border-orange-400 bg-orange-50 shadow-md shadow-orange-100'
-                : 'border-gray-100 bg-gray-50/60 hover:border-gray-200 hover:bg-white hover:shadow-sm'
+                ? 'border-primary/25 bg-primary/5 shadow-[0_12px_24px_-18px_hsl(var(--primary)/0.45)]'
+                : 'border-border bg-card hover:border-primary/20 hover:bg-accent/30'
             )}
           >
-            {/* Animated left accent bar */}
-            <motion.div
-              className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500 rounded-l-2xl"
-              initial={{ scaleY: 0 }}
-              animate={{ scaleY: isSelected ? 1 : 0 }}
-              transition={{ duration: 0.25 }}
-            />
-
-            {/* Icon */}
-            <div className={cn(
-              'w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 shrink-0',
-              isSelected
-                ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-                : 'bg-white text-gray-400 group-hover:text-gray-500 shadow-sm border border-gray-100'
-            )}>
+            <div
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-all duration-200',
+                isSelected ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+              )}
+            >
               <Icon className="h-5 w-5" />
             </div>
 
-            {/* Text */}
-            <div className="flex-1 min-w-0">
-              <p className={cn(
-                'text-sm font-black uppercase tracking-wider',
-                isSelected ? 'text-orange-700' : 'text-gray-700'
-              )}>
+            <div className="min-w-0 flex-1">
+              <p className={cn('text-sm font-semibold', isSelected ? 'text-foreground' : 'text-foreground')}>
                 {option.label}
               </p>
-              <p className={cn(
-                'text-xs font-medium mt-0.5',
-                isSelected ? 'text-orange-500' : 'text-gray-400'
-              )}>
-                {option.description}
-              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p>
             </div>
 
-            {/* Check */}
-            {isSelected && (
-              <motion.div
-                initial={{ scale: 0, rotate: -90 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              >
-                <CheckCircle2 className="h-5 w-5 text-orange-500 shrink-0" />
-              </motion.div>
-            )}
+            <CheckCircle2
+              className={cn(
+                'h-5 w-5 shrink-0 transition-all duration-200',
+                isSelected ? 'text-primary opacity-100' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-70'
+              )}
+            />
           </motion.button>
         );
       })}

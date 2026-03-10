@@ -37,7 +37,7 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 
 function SaveButton({ saving, onClick }: { saving: boolean; onClick: () => void }) {
   return (
-    <Button onClick={onClick} disabled={saving} className="gap-2 rounded-xl font-bold bg-orange-600 hover:bg-orange-700">
+    <Button onClick={onClick} disabled={saving} className="gap-2 rounded-xl font-bold bg-primary hover:bg-primary-dark">
       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
       Kaydet
     </Button>
@@ -101,7 +101,7 @@ export function ContentTab() {
               className={cn(
                 "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all",
                 activeSection === s.id
-                  ? "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                  ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary"
                   : "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
               )}>
               <Icon className="h-3.5 w-3.5" />{s.label}

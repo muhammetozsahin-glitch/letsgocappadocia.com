@@ -5,5 +5,7 @@ export interface Option {
   withCount?: boolean;
 }
 
+export * from './agency';
+
 // Re-export all types from types.ts
 export * from './types';

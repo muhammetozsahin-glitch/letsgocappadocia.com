@@ -311,8 +311,8 @@ export default function TripDetailsPage() {
     return (
       <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-4 bg-background">
         <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-orange-100 border-t-orange-600 animate-spin" />
-          <Navigation className="absolute inset-0 m-auto h-6 w-6 text-orange-600" />
+          <div className="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin" />
+          <Navigation className="absolute inset-0 m-auto h-6 w-6 text-primary" />
         </div>
         <p className="text-sm font-semibold text-gray-400">Rota yükleniyor...</p>
       </div>
@@ -351,7 +351,7 @@ export default function TripDetailsPage() {
                   onChange={e => setGuideIntro(e.target.value)}
                   placeholder="Kapadokya'ya kaç kez gittiğinizi, gezi deneyiminizi kısaca anlatın..."
                   rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
                 />
               </div>
               <div>
@@ -363,7 +363,7 @@ export default function TripDetailsPage() {
                   onChange={e => setGuideTips(e.target.value)}
                   placeholder={"Sabah erken çıkın, turist kalabalığından kaçınırsınız\nBalon turu için 3 ay önceden rezervasyon yapın\nNevşehir'den araç kiralamak en pratik seçenek"}
                   rows={4}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
                 />
               </div>
             </div>
@@ -373,7 +373,7 @@ export default function TripDetailsPage() {
                 onClick={() => setShowPublishModal(false)}>
                 Vazgeç
               </Button>
-              <Button className="flex-1 h-11 rounded-xl font-black bg-orange-600 hover:bg-orange-700 gap-2"
+              <Button className="flex-1 h-11 rounded-xl font-black bg-primary hover:bg-primary-dark gap-2"
                 onClick={handlePublish} disabled={publishLoading}>
                 {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
                 Yayınla
@@ -444,7 +444,7 @@ export default function TripDetailsPage() {
             )}
             {saveStatus === 'unsaved' && (
               <motion.div key="dot" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="w-2 h-2 rounded-full bg-orange-400"
+                className="w-2 h-2 rounded-full bg-primary"
               />
             )}
           </AnimatePresence>
@@ -454,7 +454,7 @@ export default function TripDetailsPage() {
         <div className="flex items-center gap-1.5 shrink-0">
           {!user && (
             <Button size="sm" onClick={() => navigate('/login')}
-              className="bg-orange-600 hover:bg-orange-700 h-8 px-4 rounded-full text-xs font-bold gap-1.5">
+              className="bg-primary hover:bg-primary-dark h-8 px-4 rounded-full text-xs font-bold gap-1.5">
               Kaydetmek için giriş yap
             </Button>
           )}
@@ -469,7 +469,7 @@ export default function TripDetailsPage() {
               </Button>
             ) : (
               <Button variant="outline" size="sm"
-                className="h-8 px-3 rounded-xl border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100 text-xs font-bold gap-1.5"
+                className="h-8 px-3 rounded-xl border-primary/20 text-primary bg-primary/10 hover:bg-primary/20 text-xs font-bold gap-1.5"
                 onClick={() => setShowPublishModal(true)}>
                 <GlobeLock className="h-3.5 w-3.5" />
                 Yayınla
@@ -521,13 +521,13 @@ export default function TripDetailsPage() {
                   className={cn(
                     "flex flex-col items-center justify-center py-3 rounded-xl transition-all",
                     selectedDayIndex === idx
-                      ? "bg-orange-600 text-white shadow-lg shadow-orange-600/30"
+                      ? "bg-primary text-white shadow-lg shadow-primary/30"
                       : "text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm"
                   )}
                 >
                   <span className="text-[9px] font-black uppercase tracking-tighter">Gün {day.day}</span>
                   <span className={cn("text-[8px] font-semibold mt-0.5",
-                    selectedDayIndex === idx ? "text-orange-200" : "text-gray-400"
+                    selectedDayIndex === idx ? "text-primary/80" : "text-gray-400"
                   )}>
                     {getDayDate(idx)}
                   </span>
@@ -542,7 +542,7 @@ export default function TripDetailsPage() {
 
               <button
                 onClick={handleAddDay}
-                className="flex flex-col items-center justify-center py-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all"
+                className="flex flex-col items-center justify-center py-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-primary hover:bg-primary/10 hover:border-primary/30 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 <span className="text-[8px] font-black uppercase mt-1">Ekle</span>
@@ -563,19 +563,19 @@ export default function TripDetailsPage() {
                 </div>
                 <div className="flex items-center gap-3 mt-1.5">
                   <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
-                    <MapPin className="h-3 w-3 text-orange-500" />
+                    <MapPin className="h-3 w-3 text-primary" />
                     {dayStats?.places || 0} durak
                   </span>
                   {dayStats && dayStats.places > 0 && (
                     <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
-                      <Clock className="h-3 w-3 text-orange-500" />
+                      <Clock className="h-3 w-3 text-primary" />
                       ~{dayStats.duration}
                     </span>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-orange-600 hover:bg-orange-700"
+                <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary-dark"
                   onClick={() => setShowDiscoverPanel(true)}>
                   <Plus className="h-3 w-3" />Yer Ekle
                 </Button>
@@ -633,7 +633,7 @@ export default function TripDetailsPage() {
         <div className="lg:hidden fixed bottom-6 right-6 z-50">
           <Sheet open={isMapSheetOpen} onOpenChange={setIsMapSheetOpen}>
             <SheetTrigger asChild>
-              <Button size="lg" className="h-12 px-6 rounded-full shadow-2xl bg-orange-600 hover:bg-orange-700 font-black text-[10px] uppercase tracking-wider gap-2">
+              <Button size="lg" className="h-12 px-6 rounded-full shadow-2xl bg-primary hover:bg-primary-dark font-black text-[10px] uppercase tracking-wider gap-2">
                 <MapPin className="h-4 w-4" />
                 Haritayı Aç
               </Button>

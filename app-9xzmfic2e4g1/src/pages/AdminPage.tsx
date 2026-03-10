@@ -109,7 +109,7 @@ export default function AdminPage() {
   if (!profile || profile.role !== 'admin') {
     return (
       <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -121,7 +121,7 @@ export default function AdminPage() {
       <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex flex-col shrink-0">
         <div className="p-6 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/20">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -143,11 +143,11 @@ export default function AdminPage() {
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
                   isActive
-                    ? "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400"
+                    ? "bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary"
                     : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
                 )}
               >
-                <Icon className={cn("h-4.5 w-4.5", isActive && "text-orange-600")} />
+                <Icon className={cn("h-4.5 w-4.5", isActive && "text-primary")} />
                 {tab.label}
               </button>
             );
@@ -239,7 +239,7 @@ function DashboardTab() {
   if (loading || !stats) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -261,14 +261,14 @@ function DashboardTab() {
         <StatCard label="Toplam Kullanıcı" value={stats.total_users} icon={Users} color="bg-blue-500" sub={`+${stats.users_this_week} bu hafta`} />
         <StatCard label="Toplam Gezi" value={stats.total_trips} icon={Map} color="bg-green-500" sub={`+${stats.trips_this_week} bu hafta`} />
         <StatCard label="Yayınlanan Rehber" value={stats.public_guides} icon={Globe} color="bg-purple-500" />
-        <StatCard label="Toplam Görüntülenme" value={stats.total_views} icon={Eye} color="bg-orange-500" sub={`${stats.total_likes} beğeni`} />
+        <StatCard label="Toplam Görüntülenme" value={stats.total_views} icon={Eye} color="bg-primary" sub={`${stats.total_likes} beğeni`} />
       </div>
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Bugün Yeni Kullanıcı" value={stats.users_today} icon={TrendingUp} color="bg-cyan-500" />
         <StatCard label="Bugün Yeni Gezi" value={stats.trips_today} icon={Calendar} color="bg-emerald-500" />
-        <StatCard label="Cached Yerler" value={stats.cached_places} icon={MapPin} color="bg-amber-500" />
+        <StatCard label="Cached Yerler" value={stats.cached_places} icon={MapPin} color="bg-accent/100" />
         <StatCard label="Cached Aramalar" value={stats.cached_searches} icon={Database} color="bg-rose-500" />
       </div>
 
@@ -363,7 +363,7 @@ function UsersTab() {
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {loading ? (
-                <tr><td colSpan={4} className="text-center py-12"><Loader2 className="h-6 w-6 animate-spin text-orange-500 mx-auto" /></td></tr>
+                <tr><td colSpan={4} className="text-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" /></td></tr>
               ) : users.length === 0 ? (
                 <tr><td colSpan={4} className="text-center py-12 text-sm text-gray-400 font-semibold">Kullanıcı bulunamadı</td></tr>
               ) : users.map(u => (
@@ -372,7 +372,7 @@ function UsersTab() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black",
-                        u.role === 'admin' ? "bg-orange-600" : "bg-gray-400"
+                        u.role === 'admin' ? "bg-primary" : "bg-gray-400"
                       )}>
                         {(u.full_name || u.email)?.[0]?.toUpperCase() || '?'}
                       </div>
@@ -386,7 +386,7 @@ function UsersTab() {
                     <Badge className={cn(
                       "text-[10px] font-bold rounded-lg border-0 px-2.5",
                       u.role === 'admin'
-                        ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                        ? "bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary"
                         : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                     )}>
                       {u.role === 'admin' ? <ShieldCheck className="h-3 w-3 mr-1" /> : null}
@@ -529,7 +529,7 @@ function TripsTab() {
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {loading ? (
-                <tr><td colSpan={5} className="text-center py-12"><Loader2 className="h-6 w-6 animate-spin text-orange-500 mx-auto" /></td></tr>
+                <tr><td colSpan={5} className="text-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" /></td></tr>
               ) : trips.length === 0 ? (
                 <tr><td colSpan={5} className="text-center py-12 text-sm text-gray-400 font-semibold">Gezi bulunamadı</td></tr>
               ) : trips.map(t => (
@@ -575,7 +575,7 @@ function TripsTab() {
                         <ArrowUpRight className="h-3.5 w-3.5" />
                       </Button>
                       {t.is_public && (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg text-accent hover:text-accent hover:bg-accent/10"
                           onClick={() => handleUnpublish(t.id)}>
                           <EyeOff className="h-3.5 w-3.5" />
                         </Button>
@@ -689,8 +689,8 @@ function CacheTab() {
       <Card className="border-0 shadow-md">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <div className="w-10 h-10 rounded-xl bg-accent/20 dark:bg-accent/25/30 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-black text-gray-900 dark:text-white">Cache Temizleme</h3>
@@ -709,7 +709,7 @@ function CacheTab() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel className="rounded-xl">Vazgeç</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleClear('places')} className="bg-amber-600 hover:bg-amber-700 rounded-xl">Temizle</AlertDialogAction>
+                      <AlertDialogAction onClick={() => handleClear('places')} className="bg-accent hover:bg-accent/90 rounded-xl">Temizle</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -727,7 +727,7 @@ function CacheTab() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel className="rounded-xl">Vazgeç</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleClear('search')} className="bg-amber-600 hover:bg-amber-700 rounded-xl">Temizle</AlertDialogAction>
+                      <AlertDialogAction onClick={() => handleClear('search')} className="bg-accent hover:bg-accent/90 rounded-xl">Temizle</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -760,7 +760,7 @@ function CacheTab() {
         <CardContent className="p-6">
           <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider mb-4">Son Cached Yerler</h3>
           {loading ? (
-            <div className="py-8 text-center"><Loader2 className="h-6 w-6 animate-spin text-orange-500 mx-auto" /></div>
+            <div className="py-8 text-center"><Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" /></div>
           ) : recentPlaces.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">Cache boş</p>
           ) : (
@@ -768,8 +768,8 @@ function CacheTab() {
               {recentPlaces.map((p, i) => (
                 <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                      <MapPin className="h-4 w-4 text-orange-600" />
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 dark:bg-primary/30 flex items-center justify-center">
+                      <MapPin className="h-4 w-4 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900 dark:text-white">{p.name}</p>
@@ -778,8 +778,8 @@ function CacheTab() {
                   </div>
                   <div className="flex items-center gap-2">
                     {p.rating && (
-                      <Badge className="bg-amber-50 text-amber-700 text-[10px] font-bold border-0 rounded-lg">
-                        <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500 mr-0.5" />{p.rating}
+                      <Badge className="bg-accent/10 text-accent text-[10px] font-bold border-0 rounded-lg">
+                        <Star className="h-2.5 w-2.5 fill-accent text-accent mr-0.5" />{p.rating}
                       </Badge>
                     )}
                     <span className="text-[10px] text-gray-400 font-mono">

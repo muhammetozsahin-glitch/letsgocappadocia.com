@@ -73,162 +73,168 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-background selection:bg-primary/20">
-      {/* Left Side - Cinematic Hero */}
-      <div className="hidden lg:flex lg:w-[50%] xl:w-[55%] relative overflow-hidden group">
-        <div className="absolute inset-0 z-0 transition-luxury duration-1000 group-hover:scale-105">
-          <img 
-            src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400" 
-            alt="Cappadocia Login" 
-            className="w-full h-full object-cover grayscale-[0.2]"
+    <div className="min-h-screen bg-background px-6 py-8 selection:bg-primary/20 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden rounded-[32px] border border-border/70 bg-card shadow-luxury lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative hidden overflow-hidden lg:flex">
+          <img
+            src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400"
+            alt="Cappadocia Login"
+            className="h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary/80 via-secondary/40 to-transparent z-10" />
-        </div>
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/70 via-slate-900/45 to-sky-900/20" />
 
-        <div className="relative z-20 w-full p-12 xl:p-16 flex flex-col justify-between">
-          <Link to="/" className="flex items-center gap-3 group/logo">
-            <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-white shadow-xl shadow-primary/40 group-hover/logo:scale-110 transition-luxury">
-              <MapPin className="h-6 w-6" />
-            </div>
-            <span className="text-2xl font-black text-white tracking-tighter uppercase">Kapadokya <span className="text-primary">Efsanesi</span></span>
-          </Link>
-
-          <div className="max-w-lg space-y-6">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-widest"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-accent" />
-              Sadece Size Özel Deneyim
-            </motion.div>
-            
-            <h1 className="text-5xl xl:text-7xl font-black text-white leading-[0.9] tracking-tighter uppercase">
-              BİR SONRAKİ <br /> <span className="text-primary">MACERAYA</span> <br /> ADIM ATIN
-            </h1>
-            <p className="text-lg text-white/60 font-medium italic leading-relaxed">
-              "Efsaneler, sadece cesaret edenler ve keşfedenler için yazılır. Rotanızı kaydedin ve Kapadokya'yı yaşayın."
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 text-white/40 text-[10px] font-black uppercase tracking-widest">
-            <Shield className="h-3.5 w-3.5 text-primary" />
-            <span>Premium Güvenlik Protokolü Aktif</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Side - Luxury Form */}
-      <div className="w-full lg:w-[50%] xl:w-[45%] flex items-center justify-center p-8 md:p-16 relative overflow-hidden bg-white dark:bg-card">
-        <div className="w-full max-w-sm relative z-10 space-y-10">
-          {/* Mobile Brand Header */}
-          <div className="lg:hidden flex flex-col items-center gap-3 text-center mb-10">
-            <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center text-white shadow-xl shadow-primary/20">
-              <MapPin className="h-8 w-8" />
-            </div>
-            <h2 className="text-2xl font-black tracking-tighter uppercase">Kapadokya <span className="text-primary">Efsanesi</span></h2>
-          </div>
-
-          <div className="space-y-3">
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tighter uppercase leading-none">
-              {isLogin ? 'HOŞ GELDİNİZ' : 'BİZE KATILIN'}
-            </h2>
-            <p className="text-base text-gray-500 font-medium italic">
-              {isLogin ? 'Efsane kaldığı yerden devam ediyor.' : 'Kendi Kapadokya hikayenizi başlatın.'}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-5">
-              <div className="space-y-2.5">
-                <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest text-primary">Kullanıcı Kimliği</Label>
-                <Input
-                  id="username"
-                  placeholder="kullanici_adi"
-                  required
-                  value={username}
-                  onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                  className="h-14 rounded-xl border-2 border-gray-100 bg-gray-50/50 focus:border-primary px-5 text-base font-bold transition-luxury"
-                />
+          <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14 text-white">
+            <Link to="/" className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-md">
+                <MapPin className="h-6 w-6" />
               </div>
+              <div>
+                <div className="text-xl font-semibold">Kapadokya</div>
+                <div className="text-sm text-white/70">Seyahat planlayıcı</div>
+              </div>
+            </Link>
 
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-primary">Güvenli Şifre</Label>
+            <div className="max-w-xl space-y-6">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium"
+              >
+                <Sparkles className="h-4 w-4 text-sky-300" />
+                Daha sade, daha hızlı seyahat akışı
+              </motion.div>
+
+              <h1 className="text-5xl font-semibold leading-[1.02] xl:text-6xl">
+                Rotanızı planlayın,
+                <br />
+                notlarınızı kaydedin,
+                <br />
+                <span className="text-sky-300">tek yerde yönetin.</span>
+              </h1>
+              <p className="max-w-lg text-lg leading-8 text-white/72">
+                Wanderlog benzeri temiz deneyimle gezi planlarınızı oluşturun, düzenleyin ve dilediğiniz zaman geri dönün.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-white/70">
+              <Shield className="h-4 w-4 text-sky-300" />
+              Hesap verileri güvenli şekilde korunur
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center bg-background p-6 md:p-10 lg:p-14">
+          <div className="w-full max-w-md space-y-8">
+            <div className="flex flex-col gap-4 lg:hidden">
+              <Link to="/" className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <MapPin className="h-6 w-6" />
                 </div>
-                <div className="relative">
+                <div>
+                  <div className="text-lg font-semibold text-foreground">Kapadokya</div>
+                  <div className="text-sm text-muted-foreground">Seyahat planlayıcı</div>
+                </div>
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              <div className="inline-flex rounded-full bg-accent px-3 py-1 text-sm font-medium text-primary">
+                {isLogin ? 'Tekrar hoş geldiniz' : 'Yeni hesap oluşturun'}
+              </div>
+              <h2 className="text-3xl font-semibold text-foreground md:text-4xl">
+                {isLogin ? 'Gezinize kaldığınız yerden devam edin' : 'Gezilerinizi tek yerde toplamaya başlayın'}
+              </h2>
+              <p className="text-sm leading-6 text-muted-foreground md:text-base">
+                {isLogin ? 'Kaydedilmiş rotalarınıza ve planlarınıza birkaç saniyede ulaşın.' : 'Hesabınızı oluşturup keşiflerinizi, planlarınızı ve notlarınızı saklayın.'}
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-medium text-foreground">Kullanıcı adı</Label>
                   <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    id="username"
+                    placeholder="kullanici_adi"
                     required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="h-14 rounded-xl border-2 border-gray-100 bg-gray-50/50 focus:border-primary px-5 text-base font-bold transition-luxury pr-12"
+                    value={username}
+                    onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    className="h-12 rounded-xl"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
                 </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium text-foreground">Şifre</Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      required
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="h-12 rounded-xl pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {isLogin && (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center space-x-2.5">
+                      <Checkbox
+                        id="remember"
+                        checked={rememberMe}
+                        onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                        className="h-4 w-4 rounded-md border-gray-300"
+                      />
+                      <Label htmlFor="remember" className="text-sm font-medium text-muted-foreground cursor-pointer">Beni hatırla</Label>
+                    </div>
+                    <button type="button" className="text-sm font-medium text-primary transition-opacity hover:opacity-80">Şifremi unuttum</button>
+                  </div>
+                )}
               </div>
 
-              {isLogin && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2.5">
-                    <Checkbox
-                      id="remember"
-                      checked={rememberMe}
-                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                      className="w-4 h-4 rounded-md border-2 border-gray-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                    />
-                    <Label htmlFor="remember" className="text-xs font-bold text-gray-500 cursor-pointer">Beni Hatırla</Label>
+              <Button type="submit" className="h-12 w-full rounded-xl text-sm font-semibold" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {isLogin ? 'Giriş Yap' : 'Hesap Oluştur'}
+                    <ArrowRight className="h-4 w-4" />
                   </div>
-                  <button type="button" className="text-[10px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity">Şifremi Unuttum</button>
-                </div>
-              )}
+                )}
+              </Button>
+            </form>
+
+            <div className="border-t border-border pt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setPassword('');
+                }}
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {isLogin ? (
+                  <>
+                    Hesabınız yok mu? <span className="font-semibold text-primary">Kayıt ol</span>
+                  </>
+                ) : (
+                  <>
+                    Hesabınız var mı? <span className="font-semibold text-primary">Giriş yap</span>
+                  </>
+                )}
+              </button>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full h-16 text-lg font-black bg-primary hover:bg-primary-dark rounded-xl shadow-lg shadow-primary/20 transition-luxury group"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <div className="flex items-center gap-2">
-                  {isLogin ? 'Giriş Yap' : 'Hesabı Oluştur'}
-                  <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              )}
-            </Button>
-          </form>
-
-          <div className="pt-6 text-center border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setPassword('');
-              }}
-              className="text-xs font-bold text-gray-400 hover:text-primary transition-luxury group"
-            >
-              {isLogin ? (
-                <>
-                  Hesabınız yok mu?{' '}
-                  <span className="font-black text-primary uppercase tracking-widest ml-1 group-hover:underline">Kayıt Ol</span>
-                </>
-              ) : (
-                <>
-                  Hesabınız var mı?{' '}
-                  <span className="font-black text-primary uppercase tracking-widest ml-1 group-hover:underline">Giriş Yap</span>
-                </>
-              )}
-            </button>
           </div>
         </div>
       </div>

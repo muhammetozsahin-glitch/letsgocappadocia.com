@@ -137,7 +137,7 @@ export default function GuideDetailPage() {
           <div className="max-w-4xl mx-auto">
             <div className="flex flex-wrap gap-2 mb-3">
               {duration && (
-                <Badge className="bg-orange-600 text-white border-0 font-black text-[9px] px-2.5">
+                <Badge className="bg-primary text-white border-0 font-black text-[9px] px-2.5">
                   {duration} GÜN
                 </Badge>
               )}
@@ -191,7 +191,7 @@ export default function GuideDetailPage() {
             </button>
           </div>
           <Button onClick={handleClone} disabled={cloning}
-            className="h-9 px-6 rounded-xl bg-orange-600 hover:bg-orange-700 font-black text-xs gap-2">
+            className="h-9 px-6 rounded-xl bg-primary hover:bg-primary-dark font-black text-xs gap-2">
             {cloning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
             Bu Planı Kullan
           </Button>
@@ -202,8 +202,8 @@ export default function GuideDetailPage() {
 
         {guide.guide_intro && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
-            <p className="text-xs font-black text-orange-700 uppercase tracking-widest mb-2">Gezgin Notu</p>
+            className="bg-primary/10 border border-primary/10 rounded-2xl p-5">
+            <p className="text-xs font-black text-primary uppercase tracking-widest mb-2">Gezgin Notu</p>
             <p className="text-sm text-gray-700 leading-relaxed italic">"{guide.guide_intro}"</p>
           </motion.div>
         )}
@@ -214,9 +214,9 @@ export default function GuideDetailPage() {
               onClick={() => setTipsExpanded(!tipsExpanded)}
               className="w-full flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Lightbulb className="h-4 w-4 text-amber-500" />
+                <Lightbulb className="h-4 w-4 text-accent" />
                 <span className="text-sm font-black text-gray-900">Genel İpuçları</span>
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-[9px] font-black">
+                <Badge className="bg-accent/20 text-accent border-0 text-[9px] font-black">
                   {tips.length} ipucu
                 </Badge>
               </div>
@@ -231,7 +231,7 @@ export default function GuideDetailPage() {
                   className="space-y-2 overflow-hidden">
                   {tips.map((tip, i) => (
                     <li key={i} className="flex items-start gap-2.5 text-sm text-gray-600">
-                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
+                      <span className="w-5 h-5 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
                         {i + 1}
                       </span>
                       {tip}
@@ -282,8 +282,8 @@ export default function GuideDetailPage() {
                     className={cn(
                       'flex gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all',
                       activePlaceId === item.place_id
-                        ? 'border-orange-400 bg-orange-50'
-                        : 'border-gray-100 bg-white hover:border-orange-200'
+                        ? 'border-primary/40 bg-primary/10'
+                        : 'border-gray-100 bg-white hover:border-primary/20'
                     )}
                   >
                     <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-[11px] font-black shrink-0 mt-0.5"
@@ -294,7 +294,7 @@ export default function GuideDetailPage() {
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="text-sm font-black text-gray-900 leading-tight">{item.name}</h4>
                         {item.rating && (
-                          <span className="text-[10px] font-black text-amber-600 shrink-0">
+                          <span className="text-[10px] font-black text-accent shrink-0">
                             ★ {item.rating}
                           </span>
                         )}
@@ -312,8 +312,8 @@ export default function GuideDetailPage() {
                         </p>
                       )}
                       {item.personal_tip && (
-                        <p className="text-[11px] text-amber-700 mt-1 leading-snug flex items-start gap-1">
-                          <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
+                        <p className="text-[11px] text-accent mt-1 leading-snug flex items-start gap-1">
+                          <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-accent" />
                           {item.personal_tip}
                         </p>
                       )}
@@ -343,18 +343,18 @@ export default function GuideDetailPage() {
           )}
         </div>
 
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-3xl p-8 text-center space-y-4">
+        <div className="bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/10 rounded-3xl p-8 text-center space-y-4">
           <h3 className="text-2xl font-black text-gray-900 tracking-tight">Bu rotayı beğendiniz mi?</h3>
           <p className="text-gray-500 text-sm italic">Bir tıkla kendi planınıza kopyalayın ve özelleştirin.</p>
           <Button onClick={handleClone} disabled={cloning}
-            className="h-12 px-10 rounded-xl bg-orange-600 hover:bg-orange-700 font-black gap-2 shadow-lg">
+            className="h-12 px-10 rounded-xl bg-primary hover:bg-primary-dark font-black gap-2 shadow-lg">
             {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
             Bu Planı Kullan
           </Button>
           {!user && (
             <p className="text-xs text-gray-400">
               Kopyalamak için{' '}
-              <Link to="/login" className="text-orange-600 font-bold hover:underline">giriş yapın</Link>
+              <Link to="/login" className="text-primary font-bold hover:underline">giriş yapın</Link>
             </p>
           )}
         </div>

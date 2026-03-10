@@ -112,14 +112,14 @@ export default function GuidesPage() {
           </div>
         ) : guides.length === 0 ? (
           <div className="text-center py-24 space-y-6">
-            <div className="w-20 h-20 bg-orange-50 rounded-3xl flex items-center justify-center mx-auto border-2 border-dashed border-orange-200">
-              <Compass className="h-8 w-8 text-orange-300" />
+            <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto border-2 border-dashed border-primary/20">
+              <Compass className="h-8 w-8 text-primary" />
             </div>
             <div>
               <h3 className="text-2xl font-black text-gray-900 tracking-tight uppercase">Henüz rehber yok</h3>
               <p className="text-gray-400 text-sm mt-2 italic">İlk rehberi siz oluşturun.</p>
             </div>
-            <Button className="bg-orange-600 hover:bg-orange-700 h-12 px-8 rounded-xl font-black" asChild>
+            <Button className="bg-primary hover:bg-primary-dark h-12 px-8 rounded-xl font-black" asChild>
               <Link to="/planner">Rota Oluştur</Link>
             </Button>
           </div>
@@ -173,7 +173,7 @@ export default function GuidesPage() {
                         </button>
 
                         <div className="absolute bottom-3 left-4 right-4">
-                          <h3 className="text-base font-black text-white leading-tight line-clamp-2 group-hover:text-orange-300 transition-colors">
+                          <h3 className="text-base font-black text-white leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                             {guide.title}
                           </h3>
                         </div>
@@ -210,7 +210,7 @@ export default function GuidesPage() {
                               {guide.views_count || 0}
                             </span>
                           </div>
-                          <span className="flex items-center gap-1 text-[10px] font-black text-orange-600 group-hover:gap-2 transition-all">
+                          <span className="flex items-center gap-1 text-[10px] font-black text-primary group-hover:gap-2 transition-all">
                             İncele <ArrowRight className="h-3 w-3" />
                           </span>
                         </div>

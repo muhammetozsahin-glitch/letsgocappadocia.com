@@ -262,11 +262,11 @@ export default function ErrorHandlingDemo() {
 
         {/* Loading Progress */}
         {loading && (
-          <Card className="border-orange-200 bg-orange-50/50">
+          <Card className="border-primary/20 bg-primary/10/50">
             <CardContent className="pt-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900">
                       İşlem devam ediyor...
@@ -278,7 +278,7 @@ export default function ErrorHandlingDemo() {
                 </div>
                 <Progress value={progress} className="h-2" />
                 {retryCount > 0 && (
-                  <p className="text-xs text-orange-600 font-medium">
+                  <p className="text-xs text-primary font-medium">
                     Yeniden deneniyor... ({retryCount}/3)
                   </p>
                 )}
@@ -339,7 +339,7 @@ export default function ErrorHandlingDemo() {
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                <AlertTriangle className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Validation Error</CardTitle>
               </div>
               <CardDescription>
