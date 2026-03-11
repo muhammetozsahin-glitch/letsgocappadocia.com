@@ -78,11 +78,15 @@ const DEFAULTS: SiteSettings = {
   },
   banner: { enabled: false, text: '', link: '', link_text: '', bg_color: '#EA580C', text_color: '#FFFFFF', dismissible: true },
   theme: { site_name: 'Kapadokya Efsanesi', logo_text: 'Kapadokya', logo_accent: 'Efsanesi', footer_text: '© 2026 Cappadocia Legend.', primary_color: '#EA580C' },
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GÜNCELLENMIŞ NAVBAR - YENİ LİNKLER EKLENDİ
+  // ═══════════════════════════════════════════════════════════════════════════════
   navbar: { items: [
-    { label: 'Keşfet', path: '/explore', visible: true, order: 1 },
-    { label: 'Planla', path: '/planner', visible: true, order: 2 },
-    { label: 'Rehberler', path: '/rehberler', visible: true, order: 3 },
-    { label: 'Gezilerim', path: '/account', visible: true, order: 4 },
+    { label: 'Turlar', path: '/turlar', visible: true, order: 1 },
+    { label: 'Balon', path: '/balon', visible: true, order: 2 },
+    { label: 'Aktiviteler', path: '/aktiviteler', visible: true, order: 3 },
+    { label: 'AI Planner', path: '/planner', visible: true, order: 4 },
+    { label: 'Keşfet', path: '/explore', visible: true, order: 5 },
   ]},
 };
 
