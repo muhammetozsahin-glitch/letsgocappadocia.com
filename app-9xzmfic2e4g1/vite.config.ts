@@ -18,7 +18,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3001,
-    allowedHosts: ['.dev.flatlogic.app', '.dev.appwizzy.dev', 'localhost', '127.0.0.1'],
+    allowedHosts: true,
     hmr: {
       overlay: false
     }
