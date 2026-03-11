@@ -63,9 +63,7 @@ export default function GuidesPage() {
   const getGuidePhoto = (guide: any) => {
     const first = guide.itinerary?.days?.[0]?.items?.[0];
     if (first?.photo_reference) {
-      return first.photo_reference.startsWith('http')
-        ? first.photo_reference
-        : api.getPhotoUrl(first.photo_reference);
+      return api.resolvePlacePhoto(first.photo_reference) || undefined;
     }
     return 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=800';
   };

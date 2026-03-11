@@ -77,9 +77,7 @@ export default function GuideDetailPage() {
   const getCoverPhoto = () => {
     const first = guide?.itinerary?.days?.[0]?.items?.[0];
     if (first?.photo_reference) {
-      return first.photo_reference.startsWith('http')
-        ? first.photo_reference
-        : api.getPhotoUrl(first.photo_reference);
+      return api.resolvePlacePhoto(first.photo_reference) || undefined;
     }
     return 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&q=80&w=1600';
   };
@@ -321,7 +319,7 @@ export default function GuideDetailPage() {
                     {item.photo_reference && (
                       <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0">
                         <img
-                          src={item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference)}
+                          src={api.resolvePlacePhoto(item.photo_reference) || 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=200&q=80'}
                           alt={item.name}
                           className="w-full h-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=200&q=80'; }}

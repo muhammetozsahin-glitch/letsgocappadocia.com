@@ -67,7 +67,7 @@ function ExploreCard({ place, index }: { place: DiscoverPlace; index: number }) 
   const [liked, setLiked] = useState(false);
   const navigate = useNavigate();
 
-  const photoSrc = place.photo_url
+  const photoSrc = api.resolvePlacePhoto(place.photo_reference) || place.photo_url
     || 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=800&q=80';
 
   const categoryObj = CATEGORIES.find(c =>
@@ -282,12 +282,7 @@ export default function ExplorePage() {
           const rawPhotoUrl = r.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) || null;
           let photoRef: string | undefined;
           if (rawPhotoUrl) {
-            try {
-              const ref = new URL(rawPhotoUrl).searchParams.get('photo_reference');
-              photoRef = ref || undefined;
-            } catch {
-              photoRef = undefined;
-            }
+            photoRef = api.extractPhotoReference(rawPhotoUrl) || rawPhotoUrl;
           }
           // Anlık gösterim için getUrl() kullan, DB'ye kaydedilecek olan ise photoRef
           const photoUrl = rawPhotoUrl;

@@ -147,9 +147,7 @@ export default function AccountPage() {
                           {(() => {
                             const firstItem = trip.itinerary?.days?.[0]?.items?.[0];
                             const photoSrc = firstItem?.photo_reference
-                              ? (firstItem.photo_reference.startsWith('http')
-                                  ? firstItem.photo_reference
-                                  : api.getPhotoUrl(firstItem.photo_reference))
+                              ? (api.resolvePlacePhoto(firstItem.photo_reference) || undefined)
                               : 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=800';
                             return (
                               <img
@@ -219,7 +217,7 @@ export default function AccountPage() {
                                 <div key={i} className="w-10 h-10 rounded-xl border-2 border-white dark:border-secondary bg-gray-100 overflow-hidden shadow-md">
                                   <img
                                     src={item.photo_reference
-                                      ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference))
+                                      ? (api.resolvePlacePhoto(item.photo_reference) || undefined)
                                       : 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=100&q=80'}
                                     alt=""
                                     className="w-full h-full object-cover"

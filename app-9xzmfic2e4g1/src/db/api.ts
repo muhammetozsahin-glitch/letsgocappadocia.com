@@ -161,10 +161,33 @@ const api = {
     return data;
   },
 
+  extractPhotoReference(photoValue?: string | null) {
+    if (!photoValue) return null;
+    if (!photoValue.startsWith('http')) return photoValue;
+
+    try {
+      const url = new URL(photoValue);
+      return url.searchParams.get('photo_reference');
+    } catch {
+      return null;
+    }
+  },
+
   getPhotoUrl(photoReference: string) {
     const { data } = supabase.storage.from('dummy').getPublicUrl('dummy');
     const baseUrl = data.publicUrl.split('/storage/v1')[0];
-    return `${baseUrl}/functions/v1/get-place-photo?photo_reference=${photoReference}`;
+    return `${baseUrl}/functions/v1/get-place-photo?photo_reference=${encodeURIComponent(photoReference)}`;
+  },
+
+  resolvePlacePhoto(photoValue?: string | null) {
+    if (!photoValue) return null;
+
+    const photoReference = api.extractPhotoReference(photoValue);
+    if (photoReference) {
+      return api.getPhotoUrl(photoReference);
+    }
+
+    return photoValue.startsWith('http') ? photoValue : api.getPhotoUrl(photoValue);
   },
 
   async publishGuide(tripId: string, opts: {
@@ -296,9 +319,7 @@ const api = {
       lng: p.lng,
       rating: p.rating,
       user_ratings_total: p.user_ratings_total,
-      photo_url: p.photo_reference
-        ? (p.photo_reference.startsWith('http') ? p.photo_reference : api.getPhotoUrl(p.photo_reference))
-        : null,
+      photo_url: api.resolvePlacePhoto(p.photo_reference) || undefined,
       photo_reference: p.photo_reference,
       category: p.category || 'Turistik Yer',
       types: p.types || [],

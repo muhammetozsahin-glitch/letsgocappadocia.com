@@ -287,6 +287,7 @@ export function AddToTripPanel({
           if (!r.geometry?.location || !r.place_id) continue;
 
           const photoUrl = r.photos?.[0]?.getUrl({ maxWidth: 400, maxHeight: 300 }) || null;
+          const photoReference = api.extractPhotoReference(photoUrl) || photoUrl || undefined;
 
           const item: DiscoverPlace = {
             place_id: r.place_id,
@@ -297,7 +298,7 @@ export function AddToTripPanel({
             rating: r.rating,
             user_ratings_total: r.user_ratings_total,
             photo_url: photoUrl || undefined,
-            photo_reference: r.photos?.[0] ? 'google_js_photo' : undefined,
+            photo_reference: photoReference,
             category: getCategoryLabel(r.types),
             types: r.types,
             price_level: r.price_level,
@@ -315,7 +316,7 @@ export function AddToTripPanel({
             lng: r.geometry.location.lng(),
             rating: r.rating,
             user_ratings_total: r.user_ratings_total,
-            photo_reference: r.photos?.[0]?.getUrl({ maxWidth: 800 }) || undefined,
+            photo_reference: photoReference,
             types: r.types,
             price_level: r.price_level,
             category: getCategoryLabel(r.types),
@@ -383,7 +384,7 @@ export function AddToTripPanel({
       lng: place.lng,
       rating: place.rating,
       formatted_address: place.formatted_address,
-      photo_reference: place.photo_url || place.photo_reference || '',
+      photo_reference: api.extractPhotoReference(place.photo_url) || place.photo_reference || place.photo_url || '',
       description: place.category,
       category: place.category,
       estimated_duration_minutes: isRestaurant ? 90 : isHotel ? 0 : 60,

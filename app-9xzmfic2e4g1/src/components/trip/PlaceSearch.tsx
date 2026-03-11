@@ -3,6 +3,7 @@ import { Search, MapPin, Star, Plus, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Place } from '@/db/api';
+import api from '@/db/api';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -109,12 +110,7 @@ export function PlaceSearch({ onPlaceSelect, className, placeholder = "Yeni bir 
           let photoRef: string | undefined;
           const rawPhotoUrl = place.photos?.[0]?.getUrl({ maxWidth: 800 });
           if (rawPhotoUrl) {
-            try {
-              const ref = new URL(rawPhotoUrl).searchParams.get('photo_reference');
-              photoRef = ref || rawPhotoUrl; // reference varsa onu, yoksa URL'i sakla
-            } catch {
-              photoRef = rawPhotoUrl;
-            }
+            photoRef = api.extractPhotoReference(rawPhotoUrl) || rawPhotoUrl;
           }
 
           const newPlace: Place = {

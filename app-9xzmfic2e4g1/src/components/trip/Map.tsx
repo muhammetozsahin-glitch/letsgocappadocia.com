@@ -347,9 +347,7 @@ export function TripMap({ itinerary, activePlaceId, onMarkerClick, onAddPlace }:
           onMarkerClick(item.place_id);
 
           // Sağ paneli aç — itinerary item'dan tüm veriyi taşı
-          const photoUrl = item.photo_reference
-            ? (item.photo_reference.startsWith('http') ? item.photo_reference : api.getPhotoUrl(item.photo_reference))
-            : '';
+          const photoUrl = api.resolvePlacePhoto(item.photo_reference) || '';
 
           const poi: SelectedPOI & { why_visit?: string; personal_tip?: string } = {
             place_id: item.place_id,

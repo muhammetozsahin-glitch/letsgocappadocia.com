@@ -305,9 +305,7 @@ function SortableItem({
 
   const photoUrl = useMemo(() => {
     if (item.photo_reference) {
-      return item.photo_reference.startsWith('http')
-        ? item.photo_reference
-        : api.getPhotoUrl(item.photo_reference);
+      return api.resolvePlacePhoto(item.photo_reference) || undefined;
     }
     // Kategori bazlı Kapadokya fallback resimleri
     const fallbacks: Record<string, string> = {
