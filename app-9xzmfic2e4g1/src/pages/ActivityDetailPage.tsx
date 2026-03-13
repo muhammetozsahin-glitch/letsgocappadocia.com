@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
-  Clock, Users, ChevronRight, ChevronLeft, Check, X,
+  Clock, Send, Users, ChevronRight, ChevronLeft, Check, X,
   Calendar, Minus, Plus, AlertCircle, MapPin, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ const getCategoryLabel = (category?: string) => {
 };
 
 export default function ActivityDetailPage() {
+  const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -324,18 +325,39 @@ export default function ActivityDetailPage() {
                   </div>
                 </div>
 
-                <Button className="w-full h-12 text-lg" size="lg">
-                  Rezervasyon Yap
+                <Button
+                  className="w-full h-12 text-base gap-2"
+                  size="lg"
+                  onClick={() => navigate('/teklif', {
+                    state: {
+                      items: [{
+                        item_type: 'activity',
+                        service_id: activity.id,
+                        service_name: activity.name,
+                        service_slug: activity.slug,
+                        service_date: selectedDate,
+                        adult_count: adultCount,
+                        child_count: childCount,
+                        unit_price: activity.sell_price_adult,
+                        total_price: activity.sell_price_adult * adultCount,
+                        cover_image: activity.cover_image,
+                      }],
+                      traveler_count: adultCount + childCount,
+                    }
+                  })}
+                >
+                  <Send className="w-4 h-4" />
+                  Ücretsiz Teklif Al
                 </Button>
 
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500" />
-                    24 saat öncesine kadar ücretsiz iptal
+                    24 saat içinde yanıt
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500" />
-                    Anında onay
+                    Kredi kartı gerekmez
                   </div>
                 </div>
               </CardContent>
