@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
-  Sparkles, ShoppingCart, Calendar, Users, Clock, 
+  Sparkles, Send, Calendar, Users, Clock, 
   Check, ChevronRight, Star, Cloud, Ticket, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ interface TripBookingPanelProps {
 }
 
 export function TripBookingPanel({ tripTitle, tripDays, tripPlaces }: TripBookingPanelProps) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [tours, setTours] = useState<Tour[]>([]);
   const [balloons, setBalloons] = useState<BalloonFlight[]>([]);
@@ -70,8 +71,8 @@ export function TripBookingPanel({ tripTitle, tripDays, tripPlaces }: TripBookin
               size="lg" 
               className="h-14 px-6 rounded-full shadow-2xl bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 font-bold gap-2"
             >
-              <ShoppingCart className="w-5 h-5" />
-              Bu Rotayı Satın Al
+              <Send className="w-5 h-5" />
+              Teklif Al
             </Button>
           </SheetTrigger>
 
@@ -82,7 +83,7 @@ export function TripBookingPanel({ tripTitle, tripDays, tripPlaces }: TripBookin
                   <Sparkles className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <SheetTitle className="text-left text-lg">Özel Tur Olarak Satın Al</SheetTitle>
+                  <SheetTitle className="text-left text-lg">Ücretsiz Teklif Talep Et</SheetTitle>
                   <p className="text-sm text-muted-foreground text-left">{tripTitle}</p>
                 </div>
               </div>
@@ -188,9 +189,22 @@ export function TripBookingPanel({ tripTitle, tripDays, tripPlaces }: TripBookin
                 </CardContent>
               </Card>
 
-              <Button className="w-full h-12 text-lg" size="lg">
-                <Calendar className="w-5 h-5 mr-2" />
-                Tarih Seç ve Rezervasyon Yap
+              <Button
+                className="w-full h-12 text-base gap-2"
+                size="lg"
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/teklif', {
+                    state: {
+                      tripTitle,
+                      traveler_count: adultCount,
+                      items: [],
+                    }
+                  });
+                }}
+              >
+                <Send className="w-5 h-5" />
+                Ücretsiz Teklif Al
               </Button>
 
               <Separator />
