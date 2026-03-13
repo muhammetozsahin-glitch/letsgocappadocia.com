@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
-  Clock, Users, ChevronRight, ChevronLeft, Check, X,
+  Clock, Send, Users, ChevronRight, ChevronLeft, Check, X,
   Calendar, Minus, Plus, AlertCircle, Sunrise, Award, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ const DEFAULT_IMAGES = [
 ];
 
 export default function BalloonDetailPage() {
+  const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   
   const [flight, setFlight] = useState<BalloonFlight | null>(null);
@@ -304,8 +305,29 @@ export default function BalloonDetailPage() {
                   </div>
                 </div>
 
-                <Button className="w-full h-12 text-lg" size="lg">
-                  Rezervasyon Yap
+                <Button
+                  className="w-full h-12 text-base gap-2"
+                  size="lg"
+                  onClick={() => navigate('/teklif', {
+                    state: {
+                      items: [{
+                        item_type: 'balloon',
+                        service_id: flight.id,
+                        service_name: flight.name,
+                        service_slug: flight.slug,
+                        service_date: selectedDate,
+                        adult_count: adultCount,
+                        child_count: 0,
+                        unit_price: flight.sell_price_adult,
+                        total_price: flight.sell_price_adult * adultCount,
+                        cover_image: flight.cover_image,
+                      }],
+                      traveler_count: adultCount + 0,
+                    }
+                  })}
+                >
+                  <Send className="w-4 h-4" />
+                  Ücretsiz Teklif Al
                 </Button>
 
                 <div className="space-y-2 text-sm text-muted-foreground">
@@ -315,7 +337,7 @@ export default function BalloonDetailPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-500" />
-                    Anında onay
+                    Kişiye özel fiyat
                   </div>
                 </div>
               </CardContent>
