@@ -20,8 +20,8 @@ import BalloonDetailPage from './pages/BalloonDetailPage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
 // Rezervasyon Sayfaları
-import CheckoutPage from './pages/CheckoutPage';
-import BookingConfirmationPage from './pages/BookingConfirmationPage';
+import QuotePage from './pages/QuotePage';
+import QuoteConfirmationPage from './pages/QuoteConfirmationPage';
 // Admin Sayfaları
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminToursPage from './pages/admin/AdminToursPage';
@@ -75,14 +75,14 @@ const routes: RouteConfig[] = [
   },
   // ═══ REZERVASYON ═══
   {
-    name: 'Checkout',
-    path: '/checkout',
-    element: <CheckoutPage />
+    name: 'Teklif Al',
+    path: '/teklif',
+    element: <QuotePage />
   },
   {
-    name: 'Booking Confirmation',
-    path: '/rezervasyon/onay/:code',
-    element: <BookingConfirmationPage />
+    name: 'Teklif Onayı',
+    path: '/teklif/onay',
+    element: <QuoteConfirmationPage />
   },
   // ═══ AI PLANNER ═══
   {
