@@ -7,18 +7,19 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   Clock, Users, MapPin, Star, ChevronRight, ChevronLeft,
-  Check, X, Calendar, Info, Minus, Plus, AlertCircle
+  Check, X, Calendar, Info, Minus, Plus, AlertCircle,
+  Send, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { toursApi } from '@/db/agency-api';
-import type { Tour, BookingType } from '@/types/agency';
+import type { Tour } from '@/types/agency';
+import { useNavigate } from 'react-router-dom';
 
 // Varsayılan görseller
 const getDefaultImages = (code: string) => {
@@ -37,27 +38,15 @@ export default function TourDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Rezervasyon form
+  const navigate = useNavigate();
+  // Teklif formu
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [bookingType, setBookingType] = useState<BookingType>('group');
   const [adultCount, setAdultCount] = useState(2);
   const [childCount, setChildCount] = useState(0);
-  
-  // Fiyat hesaplama
-  const [priceBreakdown, setPriceBreakdown] = useState<{ label: string; amount: number }[]>([]);
-  const [totalPrice, setTotalPrice] = useState(0);
 
   useEffect(() => {
     if (slug) loadTour(slug);
   }, [slug]);
-
-  useEffect(() => {
-    if (tour) {
-      const result = toursApi.calculatePrice(tour, bookingType, adultCount, childCount);
-      setPriceBreakdown(result.breakdown);
-      setTotalPrice(result.total);
-    }
-  }, [tour, bookingType, adultCount, childCount]);
 
   const loadTour = async (tourSlug: string) => {
     try {
@@ -228,105 +217,134 @@ export default function TourDetailPage() {
             </Tabs>
           </div>
 
-          {/* Sağ Kolon - Rezervasyon */}
+          {/* Sağ Kolon - Teklif Al */}
           <div className="lg:col-span-1">
             <Card className="sticky top-24 shadow-xl border-2">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Kişi başı</p>
+                    <p className="text-sm text-muted-foreground">Kişi başı başlangıç fiyatı</p>
                     <div className="text-3xl font-bold text-primary">{tour.group_price_adult}€</div>
                   </div>
-                  {tour.private_enabled && <Badge variant="outline">Özel tur mevcut</Badge>}
+                  {tour.private_enabled && (
+                    <Badge variant="outline" className="text-xs">Özel tur mevcut</Badge>
+                  )}
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-6">
-                {/* Tarih */}
+              <CardContent className="space-y-5">
+                {/* Tercih edilen tarih */}
                 <div>
-                  <Label className="flex items-center gap-2 mb-2"><Calendar className="w-4 h-4" />Tarih Seçin</Label>
-                  <Input type="date" min={minDate} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                  <Label className="flex items-center gap-2 mb-2 text-sm font-medium">
+                    <Calendar className="w-4 h-4" /> Tercih edilen tarih
+                  </Label>
+                  <Input
+                    type="date"
+                    min={minDate}
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="h-10"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Kesin tarih teklifte netleşir</p>
                 </div>
 
-                {/* Tur Tipi */}
-                <div>
-                  <Label className="mb-3 block">Tur Tipi</Label>
-                  <RadioGroup value={bookingType} onValueChange={(val) => setBookingType(val as BookingType)} className="space-y-3">
-                    {tour.group_enabled && (
-                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                        <RadioGroupItem value="group" id="group" />
-                        <Label htmlFor="group" className="flex-1 cursor-pointer">
-                          <div className="font-medium">Grup Turu</div>
-                          <div className="text-sm text-muted-foreground">Diğer misafirlerle birlikte</div>
-                        </Label>
-                        <div className="font-semibold text-primary">{tour.group_price_adult}€</div>
-                      </div>
-                    )}
-                    {tour.private_enabled && (
-                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                        <RadioGroupItem value="private" id="private" />
-                        <Label htmlFor="private" className="flex-1 cursor-pointer">
-                          <div className="font-medium">Özel Tur</div>
-                          <div className="text-sm text-muted-foreground">Sadece sizin için</div>
-                        </Label>
-                        <div className="font-semibold text-primary">{tour.private_price_1_3}€+</div>
-                      </div>
-                    )}
-                  </RadioGroup>
-                </div>
-
-                {/* Kişi Sayısı */}
-                <div className="space-y-4">
-                  <Label>Katılımcılar</Label>
-                  
-                  {/* Yetişkin */}
+                {/* Kişi sayısı */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Katılımcılar</Label>
                   <div className="flex items-center justify-between">
-                    <div><div className="font-medium">Yetişkin</div><div className="text-sm text-muted-foreground">13+ yaş</div></div>
+                    <div>
+                      <div className="font-medium text-sm">Yetişkin</div>
+                      <div className="text-xs text-muted-foreground">13+ yaş</div>
+                    </div>
                     <div className="flex items-center gap-3">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setAdultCount(Math.max(1, adultCount - 1))} disabled={adultCount <= 1}><Minus className="w-4 h-4" /></Button>
-                      <span className="w-8 text-center font-medium">{adultCount}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setAdultCount(adultCount + 1)}><Plus className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8"
+                        onClick={() => setAdultCount(Math.max(1, adultCount - 1))}
+                        disabled={adultCount <= 1}>
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="w-8 text-center font-semibold">{adultCount}</span>
+                      <Button variant="outline" size="icon" className="h-8 w-8"
+                        onClick={() => setAdultCount(adultCount + 1)}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Çocuk */}
                   <div className="flex items-center justify-between">
-                    <div><div className="font-medium">Çocuk</div><div className="text-sm text-muted-foreground">7-12 yaş</div></div>
+                    <div>
+                      <div className="font-medium text-sm">Çocuk</div>
+                      <div className="text-xs text-muted-foreground">7–12 yaş</div>
+                    </div>
                     <div className="flex items-center gap-3">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setChildCount(Math.max(0, childCount - 1))} disabled={childCount <= 0}><Minus className="w-4 h-4" /></Button>
-                      <span className="w-8 text-center font-medium">{childCount}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setChildCount(childCount + 1)}><Plus className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8"
+                        onClick={() => setChildCount(Math.max(0, childCount - 1))}
+                        disabled={childCount <= 0}>
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="w-8 text-center font-semibold">{childCount}</span>
+                      <Button variant="outline" size="icon" className="h-8 w-8"
+                        onClick={() => setChildCount(childCount + 1)}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
 
                 <Separator />
 
-                {/* Fiyat Özeti */}
-                <div className="space-y-2">
-                  {priceBreakdown.map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{item.label}</span>
-                      <span>{item.amount.toFixed(2)}€</span>
-                    </div>
-                  ))}
-                  <Separator />
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Toplam</span>
-                    <span className="text-primary">{totalPrice.toFixed(2)}€</span>
+                {/* Tahmini fiyat */}
+                <div className="bg-muted/50 rounded-xl p-4 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Yetişkin x {adultCount}</span>
+                    <span>{(tour.group_price_adult * adultCount).toFixed(0)}€~</span>
                   </div>
+                  {childCount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Çocuk x {childCount}</span>
+                      <span>{((tour.group_price_child || tour.group_price_adult * 0.7) * childCount).toFixed(0)}€~</span>
+                    </div>
+                  )}
+                  <Separator className="my-2" />
+                  <div className="flex justify-between font-bold">
+                    <span>Tahmini toplam</span>
+                    <span className="text-primary">
+                      {(tour.group_price_adult * adultCount + (tour.group_price_child || tour.group_price_adult * 0.7) * childCount).toFixed(0)}€~
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Kesin fiyat size özel teklifte yer alır</p>
                 </div>
 
-                {/* Rezervasyon Butonu */}
-                <Button className="w-full h-12 text-lg" size="lg">
-                  Rezervasyon Yap
+                {/* Teklif Al Butonu */}
+                <Button
+                  className="w-full h-12 text-base gap-2"
+                  size="lg"
+                  onClick={() => navigate('/teklif', {
+                    state: {
+                      items: [{
+                        item_type: 'tour',
+                        service_id: tour.id,
+                        service_name: tour.name,
+                        service_slug: tour.slug,
+                        service_date: selectedDate,
+                        service_time: tour.start_time,
+                        adult_count: adultCount,
+                        child_count: childCount,
+                        unit_price: tour.group_price_adult,
+                        total_price: tour.group_price_adult * adultCount + (tour.group_price_child || tour.group_price_adult * 0.7) * childCount,
+                        cover_image: tour.cover_image,
+                      }],
+                      traveler_count: adultCount + childCount,
+                    }
+                  })}
+                >
+                  <Send className="w-4 h-4" />
+                  Ücretsiz Teklif Al
                 </Button>
 
-                {/* Güvence */}
+                {/* Güvenceler */}
                 <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />48 saat öncesine kadar ücretsiz iptal</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Güvenli online ödeme</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Anında onay</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />24 saat içinde yanıt</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Kredi kartı gerekmez</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" />Kişiye özel fiyat</div>
                 </div>
               </CardContent>
             </Card>
