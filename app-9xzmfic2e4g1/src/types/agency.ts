@@ -155,21 +155,43 @@ export interface Activity {
   currency: string;
 }
 
-export interface CartItem {
-  id: string;
-  item_type: ServiceType;
-  service_id: string;
+// ── Teklif Sistemi ──────────────────────────────────────────────────────────
+
+export type QuoteItemType = 'tour' | 'activity' | 'balloon' | 'transfer' | 'hotel' | 'restaurant';
+export type QuoteStatus   = 'pending' | 'reviewed' | 'sent' | 'accepted' | 'rejected';
+
+export interface QuoteItem {
+  id?: string;
+  item_type: QuoteItemType;
+  service_id?: string;
   service_name: string;
-  service_name_en?: string;
-  booking_type?: BookingType;
-  service_date: string;
+  service_slug?: string;
+  service_date?: string;
   service_time?: string;
   adult_count: number;
   child_count: number;
-  infant_count: number;
-  unit_price: number;
-  child_unit_price: number;
-  line_total: number;
+  unit_price?: number;
+  total_price?: number;
+  currency?: string;
   cover_image?: string;
+  notes?: string;
+  sort_order?: number;
+}
+
+export interface QuoteRequest {
+  id?: string;
+  trip_id?: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string;
+  customer_country?: string;
+  customer_hotel?: string;
   special_requests?: string;
+  travel_dates?: string;
+  traveler_count: number;
+  travel_type?: string;
+  estimated_total?: number;
+  currency?: string;
+  status?: QuoteStatus;
+  items?: QuoteItem[];
 }
