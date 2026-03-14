@@ -1,8 +1,7 @@
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useCallback, memo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/db/api';
-import { Label } from '@/components/ui/label';
 import { Form, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -11,7 +10,7 @@ import * as z from 'zod';
 import { format, differenceInDays } from 'date-fns';
 import {
   Loader2, ArrowRight, ArrowLeft, Sparkles,
-  MapPin, Calendar, Users, Coffee, Heart,
+  MapPin, Calendar, Users, Heart,
   Car, Wallet, CheckCircle2, ChevronRight,
   PersonStanding,
 } from 'lucide-react';
@@ -66,6 +65,8 @@ const STEPS = [
   { id: 'interests',     title: 'İlgi Alanları',   icon: Heart,          description: 'Neleri keşfetmek istersiniz?' },
 ] as const;
 
+const PLANNER_ARTWORK_URL = 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_dcf363ec-bac4-4f85-8e2e-6f520d316a07.jpg';
+
 // ─── Summary label helpers ────────────────────────────────────────────────────
 function getSummaryLabel(stepId: string, values: Partial<FormValues>): string | null {
   switch (stepId) {
@@ -86,6 +87,39 @@ function getSummaryLabel(stepId: string, values: Partial<FormValues>): string | 
     default:
       return null;
   }
+}
+
+function getOptionLabel<T extends { id: string; label: string }>(options: readonly T[], id?: string) {
+  if (!id) return null;
+  return options.find(option => option.id === id)?.label ?? null;
+}
+
+function StepFieldSection({
+  label,
+  hint,
+  children,
+  trailing,
+}: {
+  label: string;
+  hint: string;
+  children: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
+      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
+            {label}
+          </span>
+          <p className="max-w-[32rem] text-sm leading-6 text-[#7e79a7] dark:text-muted-foreground">{hint}</p>
+        </div>
+        {trailing}
+      </div>
+      <div className="relative mt-6">{children}</div>
+    </div>
+  );
 }
 
 // ─── PlannerPage ──────────────────────────────────────────────────────────────
@@ -151,10 +185,13 @@ const PlannerPage = () => {
   // ── Submit ──────────────────────────────────────────────────────────────────
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
+    console.log("onSubmit called", data);
+    toast("onSubmit called");
     const iv = simulateLoadingSteps();
     try {
       const startDate = format(data.dateRange.from, 'yyyy-MM-dd');
       const endDate   = format(data.dateRange.to,   'yyyy-MM-dd');
+      console.log("Calling API generateItinerary with:", { startDate, endDate, interests: data.interests });
       const result: any = await retryWithBackoff(
         () => withTimeout(
           api.generateItinerary({
@@ -206,10 +243,30 @@ const PlannerPage = () => {
         navigate(`/trip/${saved.id}`);
         toast.success('Rotanız hazır!');
       } else {
-        sessionStorage.setItem('pending_trip', JSON.stringify(itinerary));
-        navigate('/login', { state: { from: '/planner', message: 'Planınızı kaydetmek için giriş yapın' } });
+        sessionStorage.setItem('pending_trip', JSON.stringify({
+          title: 'Kapadokya Gezisi',
+          destination: 'Cappadocia',
+          start_date: startDate,
+          end_date: endDate,
+          preferences: {
+            startDate,
+            endDate,
+            interests: data.interests,
+            travelType: data.travelType,
+            accommodation: data.accommodation,
+            transport: data.transport,
+            budget: data.budget,
+            travelers: data.travelers,
+          },
+          itinerary,
+        }));
+        navigate('/trip/preview');
+        toast.success('Rotanız hazır!', {
+          description: 'Önizleme açıldı. İsterseniz daha sonra giriş yapıp hesabınıza kaydedebilirsiniz.',
+        });
       }
     } catch (err) {
+    console.log("onSubmit error:", err);
       clearInterval(iv);
       if (err instanceof Error && err.name === 'AbortError') return;
       toast.error('Hata oluştu', { description: parseApiError(err).userMessage });
@@ -220,63 +277,263 @@ const PlannerPage = () => {
   };
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const currentStepData = STEPS[currentStep];
+  const currentSummaryLabel = getSummaryLabel(currentStepData.id, watchedValues);
+  const isFinalStep = currentStep === STEPS.length - 1;
+  const loadingConfig = LOADING_STEPS[loadingStep];
+  const LoadingStepIcon = loadingConfig.icon;
+  const tripLength = watchedValues.dateRange?.from && watchedValues.dateRange?.to
+    ? differenceInDays(watchedValues.dateRange.to, watchedValues.dateRange.from) + 1
+    : null;
+  const selectedTravelType = getOptionLabel(TRAVEL_TYPE_OPTIONS, watchedValues.travelType);
+  const selectedAccommodation = getOptionLabel(ACCOMMODATION_OPTIONS, watchedValues.accommodation);
+  const selectedTransport = getOptionLabel(TRANSPORT_OPTIONS, watchedValues.transport);
+  const selectedBudget = getOptionLabel(BUDGET_OPTIONS, watchedValues.budget);
+  const selectedInterests = INTEREST_OPTIONS.filter(option => watchedValues.interests?.includes(option.id));
+  const summaryCards = [
+    {
+      icon: Calendar,
+      label: 'Takvim',
+      value: watchedValues.dateRange?.from && watchedValues.dateRange?.to
+        ? `${format(watchedValues.dateRange.from, 'd MMM')} – ${format(watchedValues.dateRange.to, 'd MMM')}`
+        : 'Tarih seçimi bekleniyor',
+      detail: tripLength ? `${tripLength} gün` : 'Sezon ve tempo buna göre ayarlanır',
+    },
+    {
+      icon: PersonStanding,
+      label: 'Seyahat kurgusu',
+      value: selectedTravelType ?? 'Tarz seçimi bekleniyor',
+      detail: `${watchedValues.travelers ?? 0} kişi • ${selectedAccommodation ?? 'Konaklama seçimi bekleniyor'}`,
+    },
+    {
+      icon: Car,
+      label: 'Ulaşım & bütçe',
+      value: selectedTransport ?? 'Ulaşım seçimi bekleniyor',
+      detail: selectedBudget ?? 'Bütçe seçimi bekleniyor',
+    },
+    {
+      icon: Heart,
+      label: 'Deneyim odağı',
+      value: selectedInterests.length
+        ? selectedInterests.slice(0, 2).map(option => option.label).join(' • ')
+        : 'İlgi alanı seçimi bekleniyor',
+      detail: selectedInterests.length > 2
+        ? `+${selectedInterests.length - 2} ilgi alanı daha`
+        : `${selectedInterests.length}/6 seçim`,
+    },
+  ];
 
   // ── Loading screen ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-secondary relative overflow-hidden">
-        <div className="absolute inset-0 opacity-15">
-          <img
-            src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400"
-            alt=""
-            className="w-full h-full object-cover grayscale"
-          />
+      <div className="relative min-h-screen overflow-hidden bg-[#f7f3ff] dark:bg-background">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-24 -top-20 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
+          <div className="absolute -bottom-28 right-0 h-80 w-80 rounded-full bg-violet-200/50 blur-3xl dark:bg-primary/15" />
         </div>
-        <div className="absolute inset-0 bg-secondary/60" />
 
-        <div className="relative z-10 max-w-md w-full px-8 text-center space-y-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative mx-auto w-24 h-24"
-          >
-            <div className="absolute inset-0 bg-primary rounded-2xl animate-pulse opacity-30 scale-110" />
-            <div className="w-24 h-24 bg-primary rounded-2xl flex items-center justify-center shadow-2xl shadow-primary/30">
-              <Loader2 className="h-11 w-11 text-white animate-spin" />
-            </div>
-          </motion.div>
+        <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-6 lg:px-6">
+          <div className="grid w-full gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="relative overflow-hidden rounded-[34px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] text-white shadow-[0_30px_80px_rgba(109,69,221,0.32)]">
+              <div className="absolute inset-0">
+                <img
+                  src={PLANNER_ARTWORK_URL}
+                  alt="Kapadokya balonları"
+                  className="h-full w-full object-cover opacity-55"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-[#4f21c6]/85" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_38%)]" />
+              </div>
 
-          <div className="space-y-5">
-            <AnimatePresence mode="wait">
-              <motion.h2
-                key={loadingStep}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                className="text-3xl font-black text-white tracking-tighter uppercase"
-              >
-                {LOADING_STEPS[loadingStep].label}
-              </motion.h2>
-            </AnimatePresence>
+              <div className="relative flex h-full min-h-[620px] flex-col p-5 sm:p-6">
+                <div className="flex items-center gap-3 px-1">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 ring-1 ring-white/20 backdrop-blur-md">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div className="leading-none">
+                    <p className="text-lg font-black uppercase tracking-[0.08em]">Kapadokya</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-white/72">AI oluşturuyor</p>
+                  </div>
+                </div>
 
-            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-primary rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${LOADING_STEPS[loadingStep].progress}%` }}
-                transition={{ duration: 0.6, ease: 'easeInOut' }}
-              />
-            </div>
+                <div className="mt-20 rounded-[28px] border border-white/14 bg-white/10 p-5 backdrop-blur-xl sm:p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/16">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-2">
+                      <h1 className="text-[2rem] font-black leading-[0.95] tracking-[-0.04em]">
+                        Rotanızı
+                        <br />
+                        Hazırlıyoruz
+                      </h1>
+                      <p className="max-w-[220px] text-base font-medium leading-7 text-white/82">
+                        Tercihlerinize göre premium bir seyahat akışı kuruluyor.
+                      </p>
+                    </div>
+                  </div>
 
-            <div className="flex justify-between text-[10px] font-bold text-white/30 uppercase tracking-widest px-1">
-              <span>Hazırlanıyor</span>
-              <span>{LOADING_STEPS[loadingStep].progress}%</span>
-            </div>
+                  <div className="mt-6 space-y-2">
+                    {LOADING_STEPS.map((step, index) => {
+                      const StepIcon = step.icon;
+                      const isActive = index === loadingStep;
+                      const isCompleted = index < loadingStep;
+
+                      return (
+                        <motion.div
+                          key={step.label}
+                          animate={{ opacity: isActive || isCompleted ? 1 : 0.56 }}
+                          className={cn(
+                            'flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200',
+                            isActive
+                              ? 'bg-[#5d31d3]/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]'
+                              : isCompleted
+                                ? 'bg-white/10'
+                                : 'bg-transparent'
+                          )}
+                        >
+                          <div className={cn(
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1',
+                            isActive
+                              ? 'bg-white text-[#6d45dd] ring-white/35'
+                              : isCompleted
+                                ? 'bg-white/18 text-white ring-white/14'
+                                : 'bg-white/8 text-white/75 ring-white/12'
+                          )}>
+                            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold tracking-[-0.02em] text-white">{step.label}</p>
+                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">%{step.progress} tamamlandı</p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-auto rounded-[24px] border border-white/14 bg-white/10 px-4 py-4 backdrop-blur-md">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.26em] text-white/72">
+                    <span>Canlı Durum</span>
+                    <span>%{loadingConfig.progress}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/16">
+                    <motion.div
+                      className="h-full rounded-full bg-white"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${loadingConfig.progress}%` }}
+                      transition={{ duration: 0.45, ease: 'easeOut' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <section className="relative overflow-hidden rounded-[34px] bg-white/82 shadow-[0_20px_60px_rgba(86,48,166,0.10)] ring-1 ring-white/70 backdrop-blur-xl dark:bg-card/92 dark:ring-white/10">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-y-0 left-0 hidden w-[44%] xl:block">
+                  <img
+                    src={PLANNER_ARTWORK_URL}
+                    alt=""
+                    className="h-full w-full object-cover opacity-[0.12] saturate-75"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#f7f0ff]/40 via-[#fbf9ff]/88 to-white dark:from-primary/10 dark:to-card" />
+                </div>
+                <div className="absolute left-[10%] top-[30%] hidden h-16 w-16 rounded-full bg-[#9f7cff]/18 blur-sm xl:block" />
+                <div className="absolute left-[13%] top-[35%] hidden h-4 w-4 rounded-full bg-[#c4a4ff]/80 xl:block" />
+                <div className="absolute bottom-[22%] left-[18%] hidden h-6 w-6 rounded-full bg-[#d8c0ff]/70 xl:block" />
+              </div>
+
+              <div className="relative flex min-h-[620px] flex-col justify-center px-6 py-8 sm:px-10 lg:px-14 lg:py-12 xl:pl-[18rem] xl:pr-16">
+                <div className="max-w-[760px] space-y-8">
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-black uppercase tracking-[0.24em] text-[#8b67f0] dark:text-primary">
+                    <span>AI rota motoru</span>
+                    <span className="h-px w-16 bg-[#8b67f0]/25 dark:bg-primary/30" />
+                    <span>Hazırlık aşaması</span>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-gradient-to-br from-[#7f5cf0] to-[#6d45dd] text-white shadow-[0_24px_48px_rgba(109,69,221,0.28)]">
+                      <motion.div
+                        key={loadingStep}
+                        initial={{ opacity: 0, scale: 0.88 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.28, ease: 'easeOut' }}
+                      >
+                        <LoadingStepIcon className="h-9 w-9" />
+                      </motion.div>
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={loadingStep}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -16 }}
+                        transition={{ duration: 0.28, ease: 'easeOut' }}
+                        className="space-y-4"
+                      >
+                        <h2 className="max-w-[640px] text-4xl font-black uppercase leading-[0.92] tracking-[-0.06em] text-[#20244f] sm:text-5xl lg:text-6xl dark:text-white">
+                          {loadingConfig.label}
+                        </h2>
+                        <p className="max-w-[560px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
+                          Kapadokya için günlük akış, mesafeler, deneyim yoğunluğu ve sahne önerileri tek bir rota içinde birleştiriliyor.
+                        </p>
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+
+                  <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
+                    <div className="relative space-y-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
+                            Oluşturma İlerlemesi
+                          </span>
+                          <p className="mt-3 text-sm font-medium leading-6 text-[#7e79a7] dark:text-muted-foreground">
+                            Son kalite kontrol ve sahne eşleştirmeleri tamamlanıyor.
+                          </p>
+                        </div>
+                        <div className="rounded-full bg-[#f3ebff] px-4 py-2 text-sm font-black text-[#7150d7] dark:bg-primary/10 dark:text-white">
+                          %{loadingConfig.progress}
+                        </div>
+                      </div>
+
+                      <div className="h-3 overflow-hidden rounded-full bg-[#efe7ff] dark:bg-white/10">
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-[#7f5cf0] to-[#6d45dd]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${loadingConfig.progress}%` }}
+                          transition={{ duration: 0.6, ease: 'easeInOut' }}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Tempo</p>
+                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">Dengeli akış</p>
+                        </div>
+                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Veri Kaynağı</p>
+                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">AI + harita</p>
+                        </div>
+                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Son Dokunuş</p>
+                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">Görsel detaylar</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-medium italic tracking-[0.02em] text-[#7e79a7] dark:text-muted-foreground">
+                    Size özel Kapadokya efsanesi kurgulanıyor; rota hazır olduğunda otomatik olarak yönlendirileceksiniz.
+                  </p>
+                </div>
+              </div>
+            </section>
           </div>
-
-          <p className="text-white/30 text-xs font-medium italic">
-            Size özel Kapadokya efsanesi kurguluyoruz...
-          </p>
         </div>
       </div>
     );
@@ -284,267 +541,407 @@ const PlannerPage = () => {
 
   // ── Main layout ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background flex flex-col lg:flex-row overflow-hidden">
-
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <div className="w-full lg:w-[300px] xl:w-[360px] bg-secondary flex flex-col relative overflow-hidden shrink-0">
-        {/* Decorative orbs */}
-        <div className="absolute top-0 left-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl translate-x-1/3 translate-y-1/3 pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col h-full p-8 lg:p-10 gap-8">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
-              <MapPin className="h-4 w-4" />
-            </div>
-            <span className="text-base font-black text-white tracking-tight uppercase">
-              Kapadokya <span className="text-primary">Efsanesi</span>
-            </span>
-          </div>
-
-          {/* Headline */}
-          <div className="space-y-2">
-            <h1 className="text-3xl xl:text-4xl font-black text-white leading-none tracking-tighter uppercase">
-              ROTANIZI<br /><span className="text-primary">TASARLAYIN</span>
-            </h1>
-            <p className="text-white/35 text-sm font-medium italic">
-              "Size özel kurgulanmış seyahat mimarisi."
-            </p>
-          </div>
-
-          {/* Step list */}
-          <div className="flex-1 space-y-1.5">
-            {STEPS.map((step, i) => {
-              const Icon = step.icon;
-              const isActive = i === currentStep;
-              const isCompleted = i < currentStep;
-              const summaryLabel = getSummaryLabel(step.id, watchedValues);
-
-              return (
-                <motion.div
-                  key={step.id}
-                  animate={{ opacity: isActive || isCompleted ? 1 : 0.35 }}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group',
-                    isActive && 'bg-white/8'
-                  )}
-                >
-                  {/* Step indicator */}
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300',
-                    isActive    ? 'bg-primary text-white shadow-md shadow-primary/30 scale-110'
-                    : isCompleted ? 'bg-white/10 text-primary'
-                    : 'bg-white/5 text-white/20'
-                  )}>
-                    {isCompleted
-                      ? <CheckCircle2 className="h-4 w-4" />
-                      : <Icon className="h-4 w-4" />
-                    }
-                  </div>
-
-                  {/* Labels */}
-                  <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      'text-[9px] font-black uppercase tracking-[0.15em]',
-                      isActive ? 'text-primary' : 'text-white/25'
-                    )}>
-                      {String(i + 1).padStart(2, '0')}
-                    </div>
-                    <div className={cn(
-                      'text-sm font-bold leading-tight truncate',
-                      isActive ? 'text-white' : isCompleted ? 'text-white/60' : 'text-white/30'
-                    )}>
-                      {step.title}
-                    </div>
-                  </div>
-
-                  {/* Summary pill */}
-                  {isCompleted && summaryLabel && (
-                    <span className="text-[9px] font-black text-primary/70 bg-primary/10 px-2 py-0.5 rounded-full shrink-0 max-w-[80px] truncate">
-                      {summaryLabel}
-                    </span>
-                  )}
-
-                  {isActive && (
-                    <ChevronRight className="h-3.5 w-3.5 text-primary/60 shrink-0" />
-                  )}
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Progress bar */}
-          <div className="space-y-2 pt-2 border-t border-white/8">
-            <div className="flex justify-between text-[10px] font-bold text-white/25 uppercase tracking-widest">
-              <span>İlerleme</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div className="h-1 bg-white/8 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-primary rounded-full"
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-              />
-            </div>
-          </div>
-        </div>
+    <div className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#f7f3ff] dark:bg-background">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 -top-20 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
+        <div className="absolute -bottom-28 right-0 h-80 w-80 rounded-full bg-violet-200/50 blur-3xl dark:bg-primary/15" />
       </div>
 
-      {/* ── Main Form Area ──────────────────────────────────────────────────── */}
-      <div className="flex-1 bg-white dark:bg-card overflow-y-auto">
-        <div className="max-w-2xl mx-auto min-h-full flex flex-col px-8 py-10 lg:py-14 lg:px-16">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col">
+      <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-[1600px] flex-col gap-4 px-4 py-4 lg:px-6 lg:py-6 xl:flex-row">
+        <aside className="relative overflow-hidden rounded-[34px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] text-white shadow-[0_30px_80px_rgba(109,69,221,0.32)] xl:w-[320px] xl:min-w-[320px]">
+          <div className="absolute inset-0">
+            <img
+              src={PLANNER_ARTWORK_URL}
+              alt="Kapadokya balonları"
+              className="h-full w-full object-cover opacity-55"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-[#4f21c6]/85" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_38%)]" />
+          </div>
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentStep}
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -24 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                  className="flex-1 space-y-10"
-                >
-                  {/* Step header */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[10px] font-black text-primary uppercase tracking-[0.2em]">
-                      <span>Adım {currentStep + 1}/{STEPS.length}</span>
-                      <span className="w-12 h-0.5 bg-primary/20 rounded-full" />
-                      <span>{STEPS[currentStep].title}</span>
-                    </div>
-                    <h2 className="text-3xl md:text-4xl xl:text-5xl font-black text-gray-900 dark:text-white tracking-tighter leading-[0.95] uppercase">
-                      {STEPS[currentStep].description}
-                    </h2>
-                  </div>
-
-                  {/* Step content */}
-                  <div className="pt-2">
-
-                    {/* Step 0 — Dates */}
-                    {currentStep === 0 && (
-                      <FormField control={form.control} name="dateRange" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Seyahat Takvimi</Label>
-                          <DateSelector
-                            date={field.value}
-                            onDateChange={field.onChange}
-                            isOpen={datePickerOpen}
-                            onOpenChange={setDatePickerOpen}
-                          />
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
-
-                    {/* Step 1 — Travel Type */}
-                    {currentStep === 1 && (
-                      <FormField control={form.control} name="travelType" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Seyahat Tarzı</Label>
-                          <TravelTypeSelector selectedId={field.value} onSelect={field.onChange} />
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
-
-                    {/* Step 2 — Travelers & Accommodation */}
-                    {currentStep === 2 && (
-                      <div className="space-y-8">
-                        <FormField control={form.control} name="travelers" render={({ field }) => (
-                          <FormItem className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Grup Büyüklüğü</Label>
-                            <TravelerInput value={field.value} onChange={field.onChange} />
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="accommodation" render={({ field }) => (
-                          <FormItem className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Konaklama Tarzı</Label>
-                            <AccommodationSelector selectedId={field.value} onSelect={field.onChange} />
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
-                    )}
-
-                    {/* Step 3 — Transport */}
-                    {currentStep === 3 && (
-                      <FormField control={form.control} name="transport" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Ulaşım Tercihi</Label>
-                          <TransportSelector selectedId={field.value} onSelect={field.onChange} />
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
-
-                    {/* Step 4 — Budget */}
-                    {currentStep === 4 && (
-                      <FormField control={form.control} name="budget" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Günlük Bütçe</Label>
-                          <BudgetSelector selectedId={field.value} onSelect={field.onChange} />
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
-
-                    {/* Step 5 — Interests */}
-                    {currentStep === 5 && (
-                      <FormField control={form.control} name="interests" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">İlgi Alanları</Label>
-                            <span className="text-[10px] font-bold text-gray-400">{field.value.length}/6 Seçildi</span>
-                          </div>
-                          <InterestsGrid selectedInterests={field.value} onToggle={handleInterestToggle} />
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    )}
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Navigation */}
-              <div className="pt-10 mt-auto flex items-center justify-between gap-4 border-t border-gray-100 dark:border-white/8">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="lg"
-                  onClick={prevStep}
-                  disabled={currentStep === 0}
-                  className="h-13 px-7 text-sm font-bold rounded-xl hover:bg-gray-50 group disabled:opacity-30"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-                  Geri
-                </Button>
-
-                {currentStep < STEPS.length - 1 ? (
-                  <Button
-                    type="button"
-                    size="lg"
-                    onClick={nextStep}
-                    className="h-13 px-10 text-sm font-black bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 group uppercase tracking-widest"
-                  >
-                    Devam Et
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="h-13 px-12 text-sm font-black bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 uppercase tracking-widest"
-                  >
-                    Rotayı Oluştur
-                    <Sparkles className="ml-2 h-4 w-4 animate-pulse" />
-                  </Button>
-                )}
+          <div className="relative flex h-full min-h-[340px] flex-col p-4 sm:p-5">
+            <div className="flex items-center gap-3 px-1">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 ring-1 ring-white/20 backdrop-blur-md">
+                <MapPin className="h-5 w-5" />
               </div>
-            </form>
-          </Form>
-        </div>
+              <div className="leading-none">
+                <p className="text-lg font-black uppercase tracking-[0.08em]">Kapadokya</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-white/72">Efsanesi</p>
+              </div>
+            </div>
+
+            <div className="mt-24 rounded-[28px] border border-white/14 bg-white/10 p-5 backdrop-blur-xl sm:mt-28 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/16">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-[2rem] font-black leading-[0.95] tracking-[-0.04em]">
+                    Rotanızı
+                    <br />
+                    Tasarlayın
+                  </h1>
+                  <p className="max-w-[220px] text-base font-medium leading-7 text-white/82">
+                    Size özel kurgulanmış seyahat mimarisi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-2">
+                {STEPS.map((step, i) => {
+                  const isActive = i === currentStep;
+                  const isCompleted = i < currentStep;
+
+                  return (
+                    <motion.button
+                      key={step.id}
+                      type="button"
+                      disabled={i > currentStep}
+                      onClick={() => {
+                        if (i <= currentStep) {
+                          setCurrentStep(i);
+                        }
+                      }}
+                      animate={{ opacity: isActive || isCompleted ? 1 : 0.56 }}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200',
+                        isActive
+                          ? 'bg-[#5d31d3]/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]'
+                          : isCompleted
+                            ? 'bg-white/10 hover:bg-white/14'
+                            : 'cursor-default bg-transparent'
+                      )}
+                    >
+                      <div className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ring-1 transition-all duration-200',
+                        isActive
+                          ? 'bg-white text-[#6d45dd] ring-white/35'
+                          : isCompleted
+                            ? 'bg-white/18 text-white ring-white/14'
+                            : 'bg-white/8 text-white/75 ring-white/12'
+                      )}>
+                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                      </div>
+
+                      <span className={cn(
+                        'flex-1 text-base font-bold tracking-[-0.02em]',
+                        isActive ? 'text-white' : 'text-white/78'
+                      )}>
+                        {step.title}
+                      </span>
+
+                      {isActive && <ChevronRight className="h-4 w-4 text-white/70" />}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-auto px-1 pt-5">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.26em] text-white/72">
+                <span>İlerleme</span>
+                <span>%{Math.round(progress)}</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/16">
+                <motion.div
+                  className="h-full rounded-full bg-white"
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="relative flex-1 overflow-hidden rounded-[34px] bg-white/82 shadow-[0_20px_60px_rgba(86,48,166,0.10)] ring-1 ring-white/70 backdrop-blur-xl dark:bg-card/92 dark:ring-white/10">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-y-0 left-0 hidden w-[40%] xl:block">
+              <img
+                src={PLANNER_ARTWORK_URL}
+                alt=""
+                className="h-full w-full object-cover opacity-[0.14] saturate-75"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#f7f0ff]/40 via-[#fbf9ff]/88 to-white dark:from-primary/10 dark:to-card" />
+            </div>
+            <div className="absolute left-[9%] top-[34%] hidden h-14 w-14 rounded-full bg-[#9f7cff]/18 blur-sm xl:block" />
+            <div className="absolute left-[12%] top-[38%] hidden h-4 w-4 rounded-full bg-[#c4a4ff]/80 xl:block" />
+            <div className="absolute bottom-[24%] left-[18%] hidden h-5 w-5 rounded-full bg-[#d8c0ff]/70 xl:block" />
+          </div>
+
+          <div className="relative flex min-h-[calc(100vh-120px)] flex-col">
+            <div className="flex-1 overflow-y-auto">
+              <div className="mx-auto flex min-h-full w-full max-w-[1080px] flex-col px-6 py-8 sm:px-10 lg:px-14 lg:py-12 xl:pl-[18rem] xl:pr-16">
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentStep}
+                        initial={{ opacity: 0, x: 24 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -24 }}
+                        transition={{ duration: 0.32, ease: 'easeOut' }}
+                        className="flex-1 space-y-10 lg:space-y-14"
+                      >
+                        <div className="space-y-5 pt-2 lg:pt-10">
+                          <div className="flex flex-wrap items-center gap-3 text-xs font-black uppercase tracking-[0.24em] text-[#8b67f0] dark:text-primary">
+                            <span>Adım {currentStep + 1}/{STEPS.length}</span>
+                            <span className="h-px w-16 bg-[#8b67f0]/25 dark:bg-primary/30" />
+                            <span>{currentStepData.title}</span>
+                          </div>
+
+                          <div className="max-w-[560px] space-y-4">
+                            <h2 className="text-4xl font-black uppercase leading-[0.92] tracking-[-0.06em] text-[#20244f] sm:text-5xl lg:text-6xl dark:text-white">
+                              {currentStepData.description}
+                            </h2>
+                            {currentSummaryLabel ? (
+                              <div className="inline-flex items-center rounded-full bg-[#f3ebff] px-4 py-2 text-sm font-semibold text-[#7150d7] shadow-sm dark:bg-primary/10 dark:text-primary-foreground">
+                                {currentSummaryLabel}
+                              </div>
+                            ) : (
+                              <p className="max-w-[440px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
+                                Birkaç kısa adımda tercihlerinizi toplayıp size özel rota oluşturuyoruz.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="max-w-[760px]">
+                          {currentStep === 0 && (
+                            <StepFieldSection
+                              label="Seyahat Takvimi"
+                              hint="Gidiş ve dönüş aralığını seçin; öneriler sezon, yoğunluk ve günlük tempoya göre uyarlansın."
+                            >
+                              <FormField control={form.control} name="dateRange" render={({ field }) => (
+                                <FormItem className="space-y-4">
+                                  <DateSelector
+                                    date={field.value}
+                                    onDateChange={field.onChange}
+                                    isOpen={datePickerOpen}
+                                    onOpenChange={setDatePickerOpen}
+                                  />
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            </StepFieldSection>
+                          )}
+
+                          {currentStep === 1 && (
+                            <StepFieldSection
+                              label="Seyahat Tarzı"
+                              hint="Rahat, romantik ya da hareketli bir akış mı istediğinizi seçin; tüm rota önerileri buna göre şekillensin."
+                              trailing={<span className="rounded-full bg-[#f3ebff] px-3 py-2 text-xs font-bold text-[#7150d7] dark:bg-primary/10 dark:text-white">Tek seçim</span>}
+                            >
+                              <FormField control={form.control} name="travelType" render={({ field }) => (
+                                <FormItem className="space-y-4">
+                                  <TravelTypeSelector selectedId={field.value} onSelect={field.onChange} />
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            </StepFieldSection>
+                          )}
+
+                          {currentStep === 2 && (
+                            <div className="space-y-8">
+                              <StepFieldSection
+                                label="Grup Büyüklüğü"
+                                hint="Kaç kişi seyahat edeceğinizi belirleyin; günlük plan ve rezervasyon önerileri buna göre dengelensin."
+                              >
+                                <FormField control={form.control} name="travelers" render={({ field }) => (
+                                  <FormItem className="space-y-4">
+                                    <TravelerInput value={field.value} onChange={field.onChange} />
+                                    <FormMessage />
+                                  </FormItem>
+                                )} />
+                              </StepFieldSection>
+                              <StepFieldSection
+                                label="Konaklama Tarzı"
+                                hint="Hangi konaklama hissini istediğinizi seçin; rota merkezleri ve mola önerileri bu tona göre düzenlensin."
+                              >
+                                <FormField control={form.control} name="accommodation" render={({ field }) => (
+                                  <FormItem className="space-y-4">
+                                    <AccommodationSelector selectedId={field.value} onSelect={field.onChange} />
+                                    <FormMessage />
+                                  </FormItem>
+                                )} />
+                              </StepFieldSection>
+                            </div>
+                          )}
+
+                          {currentStep === 3 && (
+                            <StepFieldSection
+                              label="Ulaşım Tercihi"
+                              hint="En rahat hareket edeceğiniz ulaşım modelini seçin; gün içi rota akışı ve mesafeler buna göre kurgulansın."
+                            >
+                              <FormField control={form.control} name="transport" render={({ field }) => (
+                                <FormItem className="space-y-4">
+                                  <TransportSelector selectedId={field.value} onSelect={field.onChange} />
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            </StepFieldSection>
+                          )}
+
+                          {currentStep === 4 && (
+                            <StepFieldSection
+                              label="Günlük Bütçe"
+                              hint="Harcamak istediğiniz günlük aralığı belirleyin; konaklama, deneyim ve tempo önerileri buna göre optimize edilsin."
+                            >
+                              <FormField control={form.control} name="budget" render={({ field }) => (
+                                <FormItem className="space-y-4">
+                                  <BudgetSelector selectedId={field.value} onSelect={field.onChange} />
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            </StepFieldSection>
+                          )}
+
+                          {currentStep === 5 && (
+                            <FormField control={form.control} name="interests" render={({ field }) => (
+                              <StepFieldSection
+                                label="İlgi Alanları"
+                                hint="En fazla altı ilgi alanı seçin; rota önerileri gerçekten görmek istediğiniz deneyimlere odaklansın."
+                                trailing={<span className="rounded-full bg-[#f3ebff] px-3 py-2 text-xs font-bold text-[#7150d7] dark:bg-primary/10 dark:text-white">{field.value.length}/6 seçildi</span>}
+                              >
+                                <FormItem className="space-y-4">
+                                  <InterestsGrid selectedInterests={field.value} onToggle={handleInterestToggle} />
+                                  <FormMessage />
+                                </FormItem>
+                              </StepFieldSection>
+                            )} />
+                          )}
+                        </div>
+                      </motion.div>
+                    </AnimatePresence>
+
+                    <div className="mt-10 border-t border-[#ebe2fb] pt-8 dark:border-white/10">
+                      {isFinalStep ? (
+                        <div className="space-y-5">
+                          <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
+                            <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
+                            <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+                              <div className="space-y-5">
+                                <div className="space-y-3">
+                                  <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
+                                    Final Özet
+                                  </span>
+                                  <h3 className="text-3xl font-black uppercase leading-[0.96] tracking-[-0.05em] text-[#20244f] sm:text-[2.4rem] dark:text-white">
+                                    Tercihleriniz rota oluşturmaya hazır.
+                                  </h3>
+                                  <p className="max-w-[620px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
+                                    Aşağıdaki özet üzerinden son kez kontrol edin; oluşturma sonrası size en uygun günlük akış, deneyimler ve önerilen duraklar hazırlanacak.
+                                  </p>
+                                </div>
+
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  {summaryCards.map(({ icon: Icon, label, value, detail }) => (
+                                    <div
+                                      key={label}
+                                      className="rounded-[24px] border border-[#efe6ff] bg-white/82 p-4 shadow-[0_10px_30px_rgba(95,66,171,0.06)] dark:border-white/10 dark:bg-white/5"
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3ebff] text-[#7150d7] dark:bg-primary/10 dark:text-white">
+                                          <Icon className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0 space-y-1">
+                                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0] dark:text-primary">{label}</p>
+                                          <p className="text-base font-black tracking-[-0.03em] text-[#20244f] dark:text-white">{value}</p>
+                                          <p className="text-sm leading-6 text-[#7e79a7] dark:text-muted-foreground">{detail}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-[28px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] p-[1px] shadow-[0_24px_60px_rgba(109,69,221,0.28)]">
+                                <div className="h-full rounded-[27px] bg-[linear-gradient(180deg,rgba(88,48,197,0.94),rgba(64,27,160,0.96))] p-5 text-white sm:p-6">
+                                  <span className="inline-flex rounded-full bg-white/14 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-white/90">
+                                    Hazır olduğunda başlat
+                                  </span>
+                                  <h4 className="mt-4 text-2xl font-black uppercase leading-tight tracking-[-0.05em]">
+                                    AI rota üretimini şimdi tetikleyin.
+                                  </h4>
+                                  <p className="mt-3 text-sm leading-7 text-white/78">
+                                    Oluşturma süreci birkaç saniye sürebilir; rota hazır olduğunda detay sayfasına yönlendirilirsiniz.
+                                  </p>
+
+                                  <div className="mt-5 space-y-3 rounded-[24px] border border-white/12 bg-white/10 p-4 backdrop-blur-md">
+                                    <div className="flex items-center gap-3">
+                                      <CheckCircle2 className="h-4 w-4 text-white" />
+                                      <span className="text-sm font-semibold text-white/90">Gün gün akış ve önerilen duraklar</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <CheckCircle2 className="h-4 w-4 text-white" />
+                                      <span className="text-sm font-semibold text-white/90">Tercihlere göre tempo ve bütçe dengesi</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <CheckCircle2 className="h-4 w-4 text-white" />
+                                      <span className="text-sm font-semibold text-white/90">Harita uyumlu rota ve deneyim önerileri</span>
+                                    </div>
+                                  </div>
+
+                                  <Button
+                                    type="button" onClick={form.handleSubmit(onSubmit)}
+                                    size="lg"
+                                    className="mt-6 h-13 w-full rounded-full bg-white px-8 text-sm font-black uppercase tracking-[0.18em] text-[#6d45dd] shadow-[0_18px_36px_rgba(26,6,84,0.24)] hover:bg-white/95"
+                                  >
+                                    Rotayı Oluştur
+                                    <Sparkles className="ml-2 h-4 w-4 animate-pulse" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="lg"
+                              onClick={prevStep}
+                              className="h-12 rounded-full border border-[#ece6fb] bg-white px-7 text-sm font-bold text-[#7b68b4] shadow-[0_10px_30px_rgba(95,66,171,0.08)] hover:bg-[#faf7ff] hover:text-[#6d45dd] dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground"
+                            >
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Düzenlemeye Dön
+                            </Button>
+
+                            <p className="text-sm font-medium leading-6 text-[#7e79a7] dark:text-muted-foreground">
+                              Devam ederek tercihleriniz doğrultusunda otomatik rota oluşturulmasını onaylamış olursunuz.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="lg"
+                            onClick={prevStep}
+                            disabled={currentStep === 0}
+                            className="h-12 rounded-full border border-[#ece6fb] bg-white px-7 text-sm font-bold text-[#7b68b4] shadow-[0_10px_30px_rgba(95,66,171,0.08)] hover:bg-[#faf7ff] hover:text-[#6d45dd] disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground"
+                          >
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Geri
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="lg"
+                            onClick={nextStep}
+                            className="h-12 rounded-full bg-gradient-to-r from-[#7f5cf0] to-[#6d45dd] px-9 text-sm font-black uppercase tracking-[0.18em] text-white shadow-[0_18px_36px_rgba(109,69,221,0.28)] hover:opacity-95"
+                          >
+                            Devam Et
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </form>
+                </Form>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

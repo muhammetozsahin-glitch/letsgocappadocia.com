@@ -239,7 +239,7 @@ export default function TripDetailsPage() {
     if (agencyType === 'tour' && hasBalloon)
       return '🗺 Balon günü tur eklenmez. Turu ayrı bir güne ekleyin.';
     if (agencyType === 'tour' && hasTour)
-      return '🗺 Bu güne zaten bir tur eklenmiş. Kapadokya'da günde en fazla 1 tur yapılabilir.';
+      return '🗺 Bu güne zaten bir tur eklenmiş. Kapadokya’da günde en fazla 1 tur yapılabilir.';
     return null;
   }, []);
 
@@ -279,18 +279,11 @@ export default function TripDetailsPage() {
       } else if (agencyType === 'tour') {
         // Tur kendi start_time değerini korur (genellikle 09:00)
         startTime = place.start_time || '09:00';
-        endTime   = toHHMM(
-          parseInt(startTime.split(':')[0]) * 60 +
-          parseInt(startTime.split(':')[1]) +
-          (place.estimated_duration_minutes || 480)
-        );
+        endTime = toHHMM(parseInt(startTime.split(":")[0]) * 60 + parseInt(startTime.split(":")[1]) + (place.estimated_duration_minutes || 480));
       } else if (agencyType === 'activity') {
         // Aktivite kendi time_slot'unu korur
         startTime = place.start_time || '10:00';
-        endTime   = toHHMM(
-          parseInt(startTime.split(':')[0]) * 60 +
-          parseInt(startTime.split(':')[1]) +
-          (place.estimated_duration_minutes || 120)
+        endTime = toHHMM(parseInt(startTime.split(":")[0]) * 60 + parseInt(startTime.split(":")[1]) + (place.estimated_duration_minutes || 120));
         );
       }
 
