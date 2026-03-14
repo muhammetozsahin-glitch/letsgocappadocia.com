@@ -2,7 +2,6 @@
 // TripDetailsPage — Wanderlog tarzı tek sayfa planlayıcı
 // DOSYA: src/pages/TripDetailsPage.tsx
 // ════════════════════════════════════════════════════════════════════════════
-import { TripBookingPanel } from '@/components/trip/TripBookingPanel';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, {
@@ -323,24 +322,6 @@ export default function TripDetailsPage() {
       return days;
     });
     toast.success(`${balloon.name} Gün ${dayIndex + 1}'e atandı — ⏰ 05:30 kalkış!`);
-  }, [withDays]);
-
-  // ── Turu kaldır ─────────────────────────────────────────────────────────────
-  const handleRemoveTour = useCallback((dayIndex: number) => {
-    withDays(days => {
-      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_tour: undefined };
-      return days;
-    });
-    toast.success('Tur günden kaldırıldı');
-  }, [withDays]);
-
-  // ── Balonu kaldır ───────────────────────────────────────────────────────────
-  const handleRemoveBalloon = useCallback((dayIndex: number) => {
-    withDays(days => {
-      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_balloon: undefined };
-      return days;
-    });
-    toast.success('Balon turu günden kaldırıldı');
   }, [withDays]);
 
   // ── Tur/Balon ata modal state ────────────────────────────────────────────────
@@ -1018,8 +999,6 @@ export default function TripDetailsPage() {
                           onPlaceClick={(placeId) => { setActivePlaceId(placeId); setActiveDayIndex(idx); }}
                           activePlaceId={activePlaceId}
                           onOpenDiscover={() => { setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
-                          onRemoveTour={() => handleRemoveTour(idx)}
-                          onRemoveBalloon={() => handleRemoveBalloon(idx)}
                         />
                       </motion.div>
                     )}
@@ -1265,14 +1244,6 @@ export default function TripDetailsPage() {
         existingPlaceIds={existingPlaceIds}
       />
 
-      {/* Teklif Paneli */}
-      {trip && (
-        <TripBookingPanel
-          tripTitle={trip.title}
-          tripDays={trip.itinerary.days.length}
-          tripPlaces={totalPlaces}
-        />
-      )}
     </div>
   );
 }

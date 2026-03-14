@@ -11,18 +11,9 @@ import ExplorePage from './pages/ExplorePage';
 import LoginPage from './pages/LoginPage';
 import GuidesPage from './pages/GuidesPage';
 import GuideDetailPage from './pages/GuideDetailPage';
-// Tur Sayfaları
-import ToursPage from './pages/ToursPage';
-import TourDetailPage from './pages/TourDetailPage';
 // Balon Sayfaları
 import BalloonsPage from './pages/BalloonsPage';
 import BalloonDetailPage from './pages/BalloonDetailPage';
-// Aktivite Sayfaları
-import ActivitiesPage from './pages/ActivitiesPage';
-import ActivityDetailPage from './pages/ActivityDetailPage';
-// Rezervasyon Sayfaları
-import QuotePage from './pages/QuotePage';
-import QuoteConfirmationPage from './pages/QuoteConfirmationPage';
 // Admin Sayfaları
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminToursPage from './pages/admin/AdminToursPage';
@@ -41,17 +32,6 @@ const routes: RouteConfig[] = [
     path: '/',
     element: <LandingPage />
   },
-  // ═══ TURLAR ═══
-  {
-    name: 'Tours',
-    path: '/turlar',
-    element: <ToursPage />
-  },
-  {
-    name: 'Tour Detail',
-    path: '/tur/:slug',
-    element: <TourDetailPage />
-  },
   // ═══ BALON ═══
   {
     name: 'Balloons',
@@ -62,28 +42,6 @@ const routes: RouteConfig[] = [
     name: 'Balloon Detail',
     path: '/balon/:slug',
     element: <BalloonDetailPage />
-  },
-  // ═══ AKTİVİTELER ═══
-  {
-    name: 'Activities',
-    path: '/aktiviteler',
-    element: <ActivitiesPage />
-  },
-  {
-    name: 'Activity Detail',
-    path: '/aktivite/:slug',
-    element: <ActivityDetailPage />
-  },
-  // ═══ REZERVASYON ═══
-  {
-    name: 'Teklif Al',
-    path: '/teklif',
-    element: <QuotePage />
-  },
-  {
-    name: 'Teklif Onayı',
-    path: '/teklif/onay',
-    element: <QuoteConfirmationPage />
   },
   // ═══ AI PLANNER ═══
   {

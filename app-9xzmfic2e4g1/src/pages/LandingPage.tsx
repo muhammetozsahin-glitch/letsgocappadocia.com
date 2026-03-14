@@ -4,15 +4,13 @@
 
 import { motion, useScroll, useTransform } from 'framer-motion';
 import {
-  ArrowRight, ArrowUpRight, Calendar, Compass, Globe, type LucideIcon, MapPin, ShieldCheck, 
-  Sparkles, Star, Zap, Cloud, Ticket,
+  ArrowRight, ArrowUpRight, Calendar, Compass, Globe, type LucideIcon, MapPin, ShieldCheck,
+  Sparkles, Star, Zap, Cloud,
 } from 'lucide-react';
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useSiteSettings } from '@/hooks/use-site-settings';
-import { FeaturedTours } from '@/components/home/FeaturedTours';
-
 // Icon mapper: DB'den gelen string → React component
 const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles, MapPin, Calendar, Compass, ShieldCheck, Zap,
@@ -111,8 +109,8 @@ export default function LandingPage() {
               className="h-14 rounded-full border-white/65 bg-transparent px-9 text-base font-semibold text-white hover:bg-white/10"
               asChild
             >
-              <Link to="/turlar">
-                Turları İncele
+              <Link to="/explore">
+                Keşfet
               </Link>
             </Button>
           </motion.div>
@@ -146,11 +144,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          YENİ: ÖNE ÇIKAN TURLAR
-          ═══════════════════════════════════════════════════════════════════════ */}
-      <FeaturedTours />
-
       {/* Hizmetler Kısa Tanıtım */}
       <section className="py-16 bg-muted/30">
         <div className="container px-6">
@@ -175,6 +168,31 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Keşfet */}
+            <Link to="/explore">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="group relative h-64 rounded-3xl overflow-hidden"
+              >
+                <img 
+                  src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600&h=400&fit=crop" 
+                  alt="Keşfet"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Compass className="w-5 h-5 text-blue-400" />
+                    <span className="text-sm font-medium text-white/80">Gerçek zamanlı öneriler</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-1">Keşfet</h3>
+                  <p className="text-sm text-white/70">Harita üzerinde çevrendeki mekanları dolaş</p>
+                </div>
+              </motion.div>
+            </Link>
+
             {/* Balon */}
             <Link to="/balon">
               <motion.div
@@ -184,8 +202,8 @@ export default function LandingPage() {
                 className="group relative h-64 rounded-3xl overflow-hidden"
               >
                 <img 
-                  src="https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=600&h=400&fit=crop" 
-                  alt="Balon Turu"
+                  src="https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=600&h=400&fit=crop" 
+                  alt="Balon Deneyimi"
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -194,34 +212,8 @@ export default function LandingPage() {
                     <Cloud className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-medium text-white/80">Şafak Deneyimi</span>
                   </div>
-                  <h3 className="text-2xl font-bold mb-1">Balon Turları</h3>
+                  <h3 className="text-2xl font-bold mb-1">Balon Uçuşları</h3>
                   <p className="text-sm text-white/70">180€'dan başlayan fiyatlarla</p>
-                </div>
-              </motion.div>
-            </Link>
-
-            {/* Aktiviteler */}
-            <Link to="/aktiviteler">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.1 }}
-                className="group relative h-64 rounded-3xl overflow-hidden"
-              >
-                <img 
-                  src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop" 
-                  alt="Aktiviteler"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ticket className="w-5 h-5 text-orange-400" />
-                    <span className="text-sm font-medium text-white/80">Macera & Eğlence</span>
-                  </div>
-                  <h3 className="text-2xl font-bold mb-1">Aktiviteler</h3>
-                  <p className="text-sm text-white/70">ATV, at binme, Türk gecesi</p>
                 </div>
               </motion.div>
             </Link>
@@ -337,9 +329,8 @@ export default function LandingPage() {
               </span>
             </div>
             <div className="meta-text flex items-center gap-8 text-[11px] uppercase text-muted-foreground">
-              <Link to="/turlar" className="hover:text-primary transition-colors">Turlar</Link>
               <Link to="/balon" className="hover:text-primary transition-colors">Balon</Link>
-              <Link to="/aktiviteler" className="hover:text-primary transition-colors">Aktiviteler</Link>
+              <Link to="/explore" className="hover:text-primary transition-colors">Keşfet</Link>
               <Link to="/planner" className="hover:text-primary transition-colors">AI Planner</Link>
             </div>
           </div>

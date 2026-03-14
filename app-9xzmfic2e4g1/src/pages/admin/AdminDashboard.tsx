@@ -4,27 +4,20 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Map, Cloud, Ticket, Hotel, Car, Users, 
-  TrendingUp, Calendar, Settings, ChevronRight 
-} from 'lucide-react';
+import { Cloud, Hotel, Users, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/db/supabase';
 
 interface Stats {
-  tours: number;
   balloons: number;
-  activities: number;
   hotels: number;
   staff: number;
 }
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>({
-    tours: 0,
     balloons: 0,
-    activities: 0,
     hotels: 0,
     staff: 0,
   });
@@ -35,18 +28,14 @@ export default function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      const [tours, balloons, activities, hotels, staff] = await Promise.all([
-        supabase.from('tours').select('id', { count: 'exact', head: true }),
+      const [balloons, hotels, staff] = await Promise.all([
         supabase.from('balloon_flights').select('id', { count: 'exact', head: true }),
-        supabase.from('activities').select('id', { count: 'exact', head: true }),
         supabase.from('hotels').select('id', { count: 'exact', head: true }),
         supabase.from('staff').select('id', { count: 'exact', head: true }),
       ]);
 
       setStats({
-        tours: tours.count || 0,
         balloons: balloons.count || 0,
-        activities: activities.count || 0,
         hotels: hotels.count || 0,
         staff: staff.count || 0,
       });
@@ -57,28 +46,12 @@ export default function AdminDashboard() {
 
   const menuItems = [
     { 
-      title: 'Turlar', 
-      description: 'Günlük turları yönet', 
-      icon: Map, 
-      href: '/admin/turlar',
-      count: stats.tours,
-      color: 'bg-blue-500'
-    },
-    { 
       title: 'Balon Turları', 
       description: 'Balon uçuşlarını yönet', 
       icon: Cloud, 
       href: '/admin/balonlar',
       count: stats.balloons,
       color: 'bg-amber-500'
-    },
-    { 
-      title: 'Aktiviteler', 
-      description: 'ATV, at binme vb.', 
-      icon: Ticket, 
-      href: '/admin/aktiviteler',
-      count: stats.activities,
-      color: 'bg-purple-500'
     },
     { 
       title: 'Oteller', 
@@ -108,23 +81,11 @@ export default function AdminDashboard() {
         </div>
 
         {/* İstatistikler */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.tours}</div>
-              <p className="text-sm text-muted-foreground">Tur</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{stats.balloons}</div>
               <p className="text-sm text-muted-foreground">Balon</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.activities}</div>
-              <p className="text-sm text-muted-foreground">Aktivite</p>
             </CardContent>
           </Card>
           <Card>
@@ -175,13 +136,13 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="flex flex-wrap gap-3">
               <Button asChild>
-                <Link to="/admin/turlar/yeni">+ Yeni Tur</Link>
+                <Link to="/planner">Planner'ı Aç</Link>
               </Button>
               <Button variant="outline" asChild>
-                <Link to="/admin/balonlar/yeni">+ Yeni Balon</Link>
+                <Link to="/explore">Keşfet'e Git</Link>
               </Button>
               <Button variant="outline" asChild>
-                <Link to="/admin/aktiviteler/yeni">+ Yeni Aktivite</Link>
+                <Link to="/balon">Balon Sayfası</Link>
               </Button>
             </div>
           </CardContent>

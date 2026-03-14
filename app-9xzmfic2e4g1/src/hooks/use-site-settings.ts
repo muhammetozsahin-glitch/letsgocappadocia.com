@@ -82,11 +82,9 @@ const DEFAULTS: SiteSettings = {
   // GÜNCELLENMIŞ NAVBAR - YENİ LİNKLER EKLENDİ
   // ═══════════════════════════════════════════════════════════════════════════════
   navbar: { items: [
-    { label: 'Turlar', path: '/turlar', visible: true, order: 1 },
-    { label: 'Balon', path: '/balon', visible: true, order: 2 },
-    { label: 'Aktiviteler', path: '/aktiviteler', visible: true, order: 3 },
-    { label: 'AI Planner', path: '/planner', visible: true, order: 4 },
-    { label: 'Keşfet', path: '/explore', visible: true, order: 5 },
+    { label: 'AI Planner', path: '/planner', visible: true, order: 1 },
+    { label: 'Keşfet', path: '/explore', visible: true, order: 2 },
+    { label: 'Balon', path: '/balon', visible: true, order: 3 },
   ]},
 };
 
@@ -109,6 +107,13 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const refresh = async () => {
     try {
       const all = await api.settings.getAll();
+      const rawNavbar = all.navbar || DEFAULTS.navbar;
+      const sanitizedNavbar = {
+        ...rawNavbar,
+        items: (rawNavbar.items || DEFAULTS.navbar.items).filter(
+          (item) => !['/turlar', '/aktiviteler', '/tur', '/aktivite'].includes(item.path)
+        ),
+      };
       setSettings({
         hero: all.hero || DEFAULTS.hero,
         stats: all.stats || DEFAULTS.stats,
@@ -116,7 +121,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         cta_section: all.cta_section || DEFAULTS.cta_section,
         banner: all.banner || DEFAULTS.banner,
         theme: all.theme || DEFAULTS.theme,
-        navbar: all.navbar || DEFAULTS.navbar,
+        navbar: sanitizedNavbar,
       });
     } catch (err) {
       console.error('Failed to load site settings:', err);
