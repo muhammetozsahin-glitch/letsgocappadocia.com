@@ -225,13 +225,16 @@ const api = {
   async generateItinerary(params: {
     startDate: string;
     endDate: string;
-    interests: string[];
-    dailySchedule: string;
-    travelType: string;
-    accommodation: string;
-    transport: string;
-    budget: string;
-    travelers: number;
+    interests?: string[];
+    dailySchedule?: string;
+    travelType?: string;
+    accommodation?: string;
+    transport?: string;
+    budget?: string;
+    travelers?: number;
+    selectedTours?: any[];
+    selectedBalloon?: any | null;
+    selectedActivities?: any[];
   }): Promise<{ days: any[]; ai_used: boolean; ai_error: string | null }> {
     const { data, error } = await supabase.functions.invoke('generate-itinerary', {
       body: params,
