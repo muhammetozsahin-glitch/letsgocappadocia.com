@@ -553,8 +553,8 @@ export default function TripDetailsPage() {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between shrink-0">
               <div>
-                <h2 className="text-lg font-black text-gray-900">Gün {showAssignModal + 1}'e Ne Atayalım?</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Tur veya balon turu seçin — gün bu programa göre düzenlenir</p>
+                <h2 className="text-lg font-black text-gray-900">Gün {showAssignModal + 1} — Tur Seç</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Seçilen tur o günün tamamını kapsar. Akşam serbest kalır.</p>
               </div>
               <button onClick={() => setShowAssignModal(null)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
                 <X className="h-4 w-4 text-gray-500" />
@@ -884,7 +884,7 @@ export default function TripDetailsPage() {
 
           {/* ─── ITINERARY — GÜN GÜN ────────────────────────────────────── */}
           <SectionAccordion
-            title="Itinerary"
+            title="Gezi Planı"
             icon={<CalendarDays className="h-3.5 w-3.5 text-teal-500" />}
             isOpen={itineraryOpen}
             onToggle={() => setItineraryOpen(v => !v)}
@@ -924,14 +924,14 @@ export default function TripDetailsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-gray-800">{date}</span>
-                        {hasBalloon && (
+                        {(hasBalloon || day.assigned_balloon) && (
                           <span className="flex items-center gap-0.5 text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full">
                             <Wind className="h-2.5 w-2.5" />Balon
                           </span>
                         )}
-                        {tourItem && (
+                        {(tourItem || day.assigned_tour) && (
                           <span className="text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full truncate max-w-[80px]">
-                            {tourItem.name.split(' ').slice(0, 2).join(' ')}
+                            {(day.assigned_tour?.name || tourItem?.name || '').split(' ').slice(0, 2).join(' ')}
                           </span>
                         )}
                       </div>
@@ -957,11 +957,21 @@ export default function TripDetailsPage() {
                         <Button
                           size="sm"
                           onClick={e => { e.stopPropagation(); openAssignModal(idx); }}
-                          className="h-7 px-2.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                          className="h-7 px-2.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg gap-1"
                           variant="outline"
                         >
                           <Bus className="h-3 w-3" />Tur Ata
                         </Button>
+                      )}
+                      {day.assigned_tour && (
+                        <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200">
+                          {day.assigned_tour.code === 'red' ? '🔴' : day.assigned_tour.code === 'green' ? '🟢' : '🔵'} Tur Günü
+                        </span>
+                      )}
+                      {day.assigned_balloon && (
+                        <span className="text-[10px] font-bold text-sky-500 bg-sky-50 px-2 py-1 rounded-lg border border-sky-200">
+                          🎈 Balon Günü
+                        </span>
                       )}
                       <Button
                         size="sm"
