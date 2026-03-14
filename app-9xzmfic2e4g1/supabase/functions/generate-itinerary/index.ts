@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY')
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+const OPENAI_API_KEY           = Deno.env.get('OPENAI_API_KEY')
+const GOOGLE_MAPS_API_KEY      = Deno.env.get('GOOGLE_MAPS_API_KEY')
+const SUPABASE_URL             = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 const corsHeaders = {
@@ -12,143 +12,120 @@ const corsHeaders = {
 }
 
 function normalizePlaceName(name: string): string {
-  return name
-    .toLowerCase().trim()
-    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-    .replace(/Ğ/g, 'g').replace(/Ü/g, 'u').replace(/Ş/g, 's')
-    .replace(/İ/g, 'i').replace(/Ö/g, 'o').replace(/Ç/g, 'c')
-    .replace(/\s+/g, ' ')
+  return name.toLowerCase().trim()
+    .replace(/[ğĞ]/g,'g').replace(/[üÜ]/g,'u').replace(/[şŞ]/g,'s')
+    .replace(/[ıİ]/g,'i').replace(/[öÖ]/g,'o').replace(/[çÇ]/g,'c')
+    .replace(/\s+/g,' ')
 }
 
-// ─── Preference helpers ────────────────────────────────────────────────────────
-
-function getTravelTypeGuidance(travelType: string): string {
-  switch (travelType) {
-    case 'solo':
-      return 'Solo traveler: prioritize flexible, independent activities. Include hiking, photography spots, local cafes. Avoid group-only tours.'
-    case 'couple':
-      return 'Romantic couple trip: include sunset viewpoints, cave restaurants, hot air balloon, wine tasting, scenic valleys. Prioritize atmosphere and intimacy.'
-    case 'family':
-      return 'Family with children: only child-friendly activities. Avoid long strenuous hikes. Include interactive museums, easy nature walks, open-air museums. Max 4 stops per day.'
-    case 'friends':
-      return 'Friend group: include adventure activities (ATV, horse riding), nightlife, group tours, lively restaurants and social experiences.'
-    default:
-      return ''
+// ─── Preference helpers ───────────────────────────────────────────────────────
+function getTravelTypeGuidance(t: string): string {
+  const m: Record<string,string> = {
+    solo:    'Solo gezgin: esnek ve bağımsız. Yürüyüş, fotoğraf noktaları, yerel kafeler. Grup turundan kaçın.',
+    couple:  'Romantik çift: gün batımı manzaraları, mağara restoran, balon turu, şarap tadımı, vadiler.',
+    family:  'Aile (çocuklu): sadece çocuk dostu. Uzun yürüyüş yok. Max 4 durak/gün. Açık hava müzeleri, kolay doğa.',
+    friends: 'Arkadaş grubu: macera (ATV, at binme), grup turları, canlı restoranlar.',
   }
+  return m[t] || ''
 }
 
-function getBudgetGuidance(budget: string): string {
-  switch (budget) {
-    case 'budget':
-      return 'Budget traveler (₺500-1000/day): prioritize free or low-cost attractions (valleys, viewpoints, open-air sites). Avoid expensive private tours or luxury restaurants.'
-    case 'moderate':
-      return 'Moderate budget (₺1000-2500/day): mix of paid and free attractions. Include some paid guided tours and mid-range restaurants.'
-    case 'comfort':
-      return 'Comfort budget (₺2500-5000/day): include premium experiences like private guided tours, cave hotel visits, sunset dinners. Prioritize quality over quantity.'
-    case 'luxury':
-      return 'Luxury budget (₺5000+/day): include exclusive experiences: private balloon flight, VIP cave restaurant dinners, private guided tours, spa, premium viewpoints with private transfers.'
-    default:
-      return ''
+function getBudgetGuidance(b: string): string {
+  const m: Record<string,string> = {
+    budget:   'Ekonomik (₺500-1000/gün): ücretsiz/ucuz yerler. Özel tur yok, lüks restoran yok.',
+    moderate: 'Orta (₺1000-2500/gün): ücretli turlar ve orta restoran karışımı.',
+    comfort:  'Konforlu (₺2500-5000/gün): özel rehber, mağara otel ziyareti, gün batımı yemeği.',
+    luxury:   'Lüks (₺5000+/gün): özel balon, VIP mağara restoran, özel tur, spa, premium noktalar.',
   }
+  return m[b] || ''
 }
 
-function getTransportGuidance(transport: string): string {
-  switch (transport) {
-    case 'rental':
-      return 'Has a rental car: can reach remote locations. Include distant valleys (Ihlara, Soganli), off-the-beaten-path spots. No need to cluster locations geographically.'
-    case 'transfer':
-      return 'Using private transfers: comfortable but planned routes. Group locations by area per day to minimize travel time. Can reach all sites.'
-    case 'shuttle':
-      return 'Using shuttle/minibus: stick to popular tourist routes. Cluster stops near Göreme, Ürgüp, Avanos. Avoid remote locations not on standard routes.'
-    case 'mixed':
-      return 'Mixed transport: balance between accessible and remote locations. Include a mix of central and off-the-beaten-path sites.'
-    default:
-      return ''
+function getTransportGuidance(t: string): string {
+  const m: Record<string,string> = {
+    rental:   'Kiralık araç: uzak lokasyonlar erişilebilir. İhlara, Soğanlı dahil.',
+    transfer: 'Özel transfer: konforlu. Günlük rotaları güzergaha göre grupla.',
+    shuttle:  'Servis/minibüs: Göreme, Ürgüp, Avanos odaklı popüler güzergah.',
+    mixed:    'Karma: erişilebilir ve off-beat karışımı.',
   }
+  return m[t] || ''
 }
 
 function getInterestGuidance(interests: string[]): string {
-  const map: Record<string, string> = {
-    balloon: 'MUST include a hot air balloon flight on Day 1 or 2 at sunrise (05:00-08:00)',
-    nature: 'Prioritize valleys, hiking routes (Rose Valley, Red Valley, Pigeon Valley, Ihlara Valley)',
-    history: 'Prioritize underground cities (Derinkuyu, Kaymakli), rock churches, Selime Monastery',
-    photography: 'Include best photo spots: Uchisar Castle, Rose Valley sunset, Pasabag fairy chimneys, panoramic viewpoints',
-    adventure: 'Include ATV tours, horse riding, hiking, zip-lining where available',
-    gastronomy: 'Include local pottery workshop in Avanos, traditional restaurants, wine tasting in Ürgüp, local market visits',
+  const m: Record<string,string> = {
+    balloon:     'ZORUNLU: Gün 1 veya 2\'de şafak balonu (05:30). agency_service ekle.',
+    nature:      'Vadilere öncelik ver: Güvercinlik, Aşk Vadisi, Kızıl Vadi, İhlara.',
+    history:     'Yeraltı şehirleri (Derinkuyu, Kaymaklı), kaya kiliseler, Selime Manastırı.',
+    photography: 'Fotoğraf noktaları: Uçhisar Kalesi, Rose Valley gün batımı, Paşabağ.',
+    adventure:   'ATV turu, at binme, yürüyüş, zipline.',
+    gastronomy:  'Avanos çömlek atölyesi, Ürgüp şarap tadımı, testi kebabı.',
   }
-  return interests.map(i => map[i] || '').filter(Boolean).join('. ')
+  return interests.map(i => m[i] || '').filter(Boolean).join(' ')
 }
 
 function getDailyPlaceCount(budget: string, travelType: string): number {
   if (travelType === 'family') return 3
-  if (budget === 'luxury') return 3  // fewer but premium
-  if (budget === 'budget') return 5  // more self-guided stops
+  if (budget === 'luxury') return 3
+  if (budget === 'budget') return 5
   return 4
 }
 
-// ─── Mock itinerary (interest + budget aware) ─────────────────────────────────
-
+// ─── TÜRKÇE Mock (AI yoksa) ───────────────────────────────────────────────────
 function generateMockItinerary(
-  startDate: string,
-  endDate: string,
-  interests: string[],
-  travelType: string,
-  budget: string,
-  transport: string
+  startDate: string, endDate: string,
+  interests: string[], travelType: string,
+  budget: string, _transport: string,
+  agencyTours: any[], agencyBalloons: any[]
 ) {
-  const diffDays = Math.ceil(
-    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
-  ) + 1
-  const numDays = Math.min(diffDays, 14)
+  const numDays = Math.min(
+    Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1,
+    14
+  )
 
-  // Place pools by category
-  const pools: Record<string, { place_name: string; category: string; duration: number; desc: string }[]> = {
+  // Türkçe yer havuzu
+  const pools: Record<string, { place_name:string; category:string; duration:number; desc:string }[]> = {
     nature: [
-      { place_name: 'Rose Valley Sunset Hike', category: 'nature', duration: 120, desc: 'Beautiful valley that turns pink at sunset.' },
-      { place_name: 'Pigeon Valley', category: 'nature', duration: 90, desc: 'Valley named after the countless man-made dovecotes.' },
-      { place_name: 'Love Valley', category: 'nature', duration: 60, desc: 'Famous for its fairy chimneys.' },
-      { place_name: 'Red Valley', category: 'nature', duration: 90, desc: 'Stunning valley with red hues.' },
-      { place_name: 'Ihlara Valley', category: 'nature', duration: 180, desc: 'A stunning canyon with a river and rock-cut churches.' },
-      { place_name: 'Devrent Valley', category: 'nature', duration: 45, desc: 'Unique rock formations resembling animals.' },
+      { place_name:'Güvercinlik Vadisi',     category:'nature',   duration:90,  desc:'Kaya yüzeylerindeki güvercin yuvalarıyla ünlü büyüleyici vadi.' },
+      { place_name:'Aşk Vadisi',             category:'nature',   duration:60,  desc:'Ünik kaya oluşumlarıyla fotoğrafçıların gözdesi.' },
+      { place_name:'Kızıl Vadi',             category:'nature',   duration:90,  desc:'Gün batımında kızıla boyanan eşsiz vadi.' },
+      { place_name:'Devrent Vadisi',         category:'nature',   duration:45,  desc:'Hayvan silüetlerini andıran volkanik kayalar.' },
+      { place_name:'İhlara Vadisi',          category:'nature',   duration:180, desc:'14 km uzunlukta nehir kenarı yürüyüş vadisi.' },
+      { place_name:'Paşabağ Vadisi',        category:'nature',   duration:60,  desc:'Üç başlı peri bacalarıyla ünlü mantar kayalar.' },
     ],
     history: [
-      { place_name: 'Kaymakli Underground City', category: 'history', duration: 90, desc: 'Ancient multi-level underground city.' },
-      { place_name: 'Derinkuyu Underground City', category: 'history', duration: 120, desc: 'The deepest underground city in the region.' },
-      { place_name: 'Selime Monastery', category: 'history', duration: 60, desc: 'The largest religious structure in Cappadocia.' },
-      { place_name: 'Çavuşin Village', category: 'culture', duration: 60, desc: 'An old Greek village with a massive rock castle.' },
+      { place_name:'Kaymaklı Yeraltı Şehri',  category:'history', duration:90,  desc:'4 katı ziyarete açık antik yeraltı şehri.' },
+      { place_name:'Derinkuyu Yeraltı Şehri', category:'history', duration:120, desc:'Bölgenin en derin 8 katlı yeraltı şehri.' },
+      { place_name:'Selime Manastırı',        category:'history', duration:60,  desc:'Kapadokya\'nın en büyük kaya oyma yapısı.' },
+      { place_name:'Çavuşin Köyü',           category:'culture', duration:60,  desc:'Terk edilmiş Rum köyü, kaya kalesi.' },
     ],
     museum: [
-      { place_name: 'Göreme Open Air Museum', category: 'museum', duration: 120, desc: 'UNESCO World Heritage site with rock-cut churches.' },
-      { place_name: 'Zelve Open Air Museum', category: 'museum', duration: 120, desc: 'An abandoned cave town with ancient churches.' },
+      { place_name:'Göreme Açık Hava Müzesi', category:'museum', duration:120, desc:'UNESCO Dünya Mirası. 10. yüzyıl Bizans freskleri.' },
+      { place_name:'Zelve Açık Hava Müzesi',  category:'museum', duration:120, desc:'Terk edilmiş mağara köyü ve kiliseler.' },
     ],
     landmark: [
-      { place_name: 'Uçhisar Castle', category: 'landmark', duration: 90, desc: 'The highest point in Cappadocia with panoramic views.' },
-      { place_name: 'Ortahisar Castle', category: 'landmark', duration: 60, desc: 'A massive rock formation used as a fortress.' },
-      { place_name: 'Pasabag (Monks Valley)', category: 'nature', duration: 60, desc: 'Famous fairy chimneys with multiple caps.' },
+      { place_name:'Uçhisar Kalesi',   category:'landmark', duration:90,  desc:'Bölgenin en yüksek noktası, 360° panorama.' },
+      { place_name:'Ortahisar Kalesi', category:'landmark', duration:60,  desc:'Az kalabalık, özgün atmosfer.' },
     ],
     gastronomy: [
-      { place_name: 'Avanos Pottery Workshop', category: 'culture', duration: 60, desc: 'Traditional pottery making in the Red River town.' },
-      { place_name: 'Ürgüp Wine Tasting', category: 'gastronomy', duration: 90, desc: 'Local Cappadocian wine tasting experience.' },
-      { place_name: 'Göreme Local Market', category: 'gastronomy', duration: 60, desc: 'Fresh local produce and Turkish delights.' },
+      { place_name:'Avanos Çömlek Atölyesi', category:'culture',    duration:60,  desc:'Kızılırmak kilinden geleneksel çömlek yapımı.' },
+      { place_name:'Ürgüp Şarap Tadımı',     category:'gastronomy', duration:90,  desc:'Kapadokya\'ya özgü yerel şarap deneyimi.' },
     ],
     luxury: [
-      { place_name: 'Private Guided Valley Tour', category: 'activity', duration: 180, desc: 'Exclusive private tour of the most scenic valleys.' },
-      { place_name: 'Cave Restaurant Dinner', category: 'gastronomy', duration: 120, desc: 'Fine dining in a traditional Cappadocian cave.' },
-      { place_name: 'Turkish Bath (Hamam)', category: 'wellness', duration: 120, desc: 'Traditional Ottoman bath experience.' },
+      { place_name:'Mağara Restoran Akşam Yemeği', category:'gastronomy', duration:120, desc:'Tarihi mağarada fine dining.' },
+      { place_name:'Türk Hamamı',                  category:'wellness',   duration:120, desc:'Geleneksel Osmanlı hamamı deneyimi.' },
+    ],
+    adventure: [
+      { place_name:'ATV Safari Turu',     category:'activity', duration:120, desc:'Vadilerde off-road ATV macerası.' },
+      { place_name:'At Binme Turu',       category:'activity', duration:90,  desc:'Güvercinlik Vadisi\'nde at sırtında keşif.' },
+      { place_name:'Jeep Safari',         category:'activity', duration:180, desc:'Köyler ve vadilerde 4x4 macerası.' },
     ],
   }
 
-  // Build priority pool based on interests
   const priorityPool: typeof pools.nature = []
-
-  if (interests.includes('nature')) priorityPool.push(...pools.nature)
-  if (interests.includes('history')) priorityPool.push(...pools.history)
+  if (interests.includes('nature'))      priorityPool.push(...pools.nature)
+  if (interests.includes('history'))     priorityPool.push(...pools.history)
   if (interests.includes('photography')) priorityPool.push(...pools.landmark)
-  if (interests.includes('gastronomy')) priorityPool.push(...pools.gastronomy)
+  if (interests.includes('gastronomy'))  priorityPool.push(...pools.gastronomy)
+  if (interests.includes('adventure'))   priorityPool.push(...pools.adventure)
   if (budget === 'luxury' || budget === 'comfort') priorityPool.push(...pools.luxury)
-
-  // Always add museums as fallback
   priorityPool.push(...pools.museum, ...pools.landmark)
 
   const usedPlaces = new Set<string>()
@@ -156,21 +133,55 @@ function generateMockItinerary(
   const days = []
 
   for (let i = 1; i <= numDays; i++) {
-    const dailyItems: { place_name: string; category: string; estimated_duration_minutes: number; description: string }[] = []
+    const dailyItems: any[] = []
 
-    // Balloon on day 1 if interest selected
+    // Balon: Gün 1'de (agency DB'den al, yoksa mock)
     if (i === 1 && interests.includes('balloon')) {
-      dailyItems.push({
-        place_name: 'Hot Air Balloon Flight',
-        category: 'activity',
-        estimated_duration_minutes: budget === 'luxury' ? 90 : 60,
-        description: budget === 'luxury'
-          ? 'Private luxury sunrise balloon flight over the fairy chimneys.'
-          : 'Breathtaking sunrise flight over the fairy chimneys.',
-      })
+      if (agencyBalloons.length > 0) {
+        const b = agencyBalloons[0]
+        dailyItems.push({
+          place_name: b.name,
+          name: b.name,
+          category: 'Balon Turu',
+          estimated_duration_minutes: b.duration_minutes || 90,
+          description: b.description || 'Şafakta Kapadokya üzerinde balon turu.',
+          start_time: '05:30',
+          end_time: '08:00',
+          agency_service: { type: 'balloon', slug: b.slug, price: b.sell_price_adult, currency: b.currency || 'EUR' },
+        })
+      } else {
+        dailyItems.push({
+          place_name: 'Sıcak Hava Balonu Turu',
+          name: 'Sıcak Hava Balonu Turu',
+          category: 'Balon Turu',
+          estimated_duration_minutes: budget === 'luxury' ? 90 : 60,
+          description: 'Şafakta peri bacaları üzerinde unutulmaz balon turu.',
+          start_time: '05:30',
+          end_time: '08:00',
+        })
+      }
     }
 
-    // Fill remaining slots
+    // Tur: agency DB'den al (Kırmızı tur = Gün 2-3, Yeşil tur = Gün 3-4, Mavi tur = Gün 4-5)
+    const tourForDay: Record<number, string> = { 2:'red', 3:'green', 4:'blue' }
+    const tourCode = tourForDay[i]
+    if (tourCode && agencyTours.length > 0) {
+      const tourMatch = agencyTours.find((t: any) => t.code === tourCode)
+      if (tourMatch) {
+        dailyItems.push({
+          place_name: tourMatch.name,
+          name: tourMatch.name,
+          category: 'Tur',
+          estimated_duration_minutes: Math.round((tourMatch.duration_hours || 8) * 60),
+          description: tourMatch.short_description || `${tourMatch.name} — profesyonel rehber eşliğinde.`,
+          start_time: tourMatch.start_time || '09:00',
+          end_time: tourMatch.end_time || '17:30',
+          agency_service: { type: 'tour', slug: tourMatch.slug, price: tourMatch.group_price_adult, currency: tourMatch.currency || 'EUR' },
+        })
+      }
+    }
+
+    // Kalan slotları doldur
     const available = priorityPool.filter(p => !usedPlaces.has(p.place_name))
     const shuffled = [...available].sort(() => 0.5 - Math.random())
     const slots = maxPerDay - dailyItems.length
@@ -179,6 +190,7 @@ function generateMockItinerary(
       usedPlaces.add(shuffled[j].place_name)
       dailyItems.push({
         place_name: shuffled[j].place_name,
+        name: shuffled[j].place_name,
         category: shuffled[j].category,
         estimated_duration_minutes: shuffled[j].duration,
         description: shuffled[j].desc,
@@ -191,17 +203,41 @@ function generateMockItinerary(
   return { days }
 }
 
-// ─── Main handler ──────────────────────────────────────────────────────────────
+// ─── Zaman dilimi atama ───────────────────────────────────────────────────────
+function assignTimesToDay(day: any): any {
+  let currentTime = new Date('2026-01-01T09:00:00')
+  const itemsWithTime = day.items.map((item: any) => {
+    // Agency servisler zaten start_time'a sahip, dokunma
+    if (item.start_time) return item
 
+    const category = (item.category || '').toLowerCase()
+    const name = (item.place_name || item.name || '').toLowerCase()
+
+    // Gün batımı noktaları → 17:30
+    if (/gün batımı|sunset|kızıl vadi|rose valley/.test(name)) {
+      return { ...item, start_time: '17:30', end_time: '19:30' }
+    }
+    // Akşam aktiviteleri → 19:00
+    if (/hamam|türk gecesi|akşam yemeği|dinner|restoran/.test(name)) {
+      return { ...item, start_time: '19:00', end_time: '21:30' }
+    }
+
+    const startTime = currentTime.toTimeString().slice(0, 5)
+    currentTime.setMinutes(currentTime.getMinutes() + (item.estimated_duration_minutes || 60))
+    const endTime = currentTime.toTimeString().slice(0, 5)
+    currentTime.setMinutes(currentTime.getMinutes() + 30) // seyahat tamponu
+    return { ...item, start_time: startTime, end_time: endTime }
+  })
+  return { ...day, items: itemsWithTime }
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────────────
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const {
-      startDate,
-      endDate,
+      startDate, endDate,
       interests = [],
       dailySchedule = 'moderate',
       travelType = 'couple',
@@ -213,176 +249,167 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
 
-    let itinerary
+    // ── DB'den aktif acenta ürünlerini çek ──────────────────────────────────
+    const { data: agencyTours = [] } = await supabase
+      .from('tours')
+      .select('id, code, name, slug, start_time, end_time, duration_hours, group_price_adult, short_description, currency')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+
+    const { data: agencyBalloons = [] } = await supabase
+      .from('balloon_flights')
+      .select('id, name, slug, flight_time, duration_minutes, sell_price_adult, description, currency')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+
+    // ── Acenta tur özetini prompt'a ekle ────────────────────────────────────
+    const agencyToursInfo = agencyTours.length > 0
+      ? `\n\n=== ACENTANIN MEVCUT TURLARI (bunları kullan!) ===\n` +
+        (agencyTours as any[]).map((t: any) =>
+          `- ${t.name} (code: ${t.code}): kalkış ${t.start_time}, ${t.duration_hours} saat, ${t.group_price_adult}€/kişi`
+        ).join('\n')
+      : ''
+
+    const agencyBalloonInfo = agencyBalloons.length > 0
+      ? `\n\n=== ACENTANIN BALON TURLARI ===\n` +
+        (agencyBalloons as any[]).map((b: any) =>
+          `- ${b.name}: kalkış 05:30, ${b.duration_minutes} dakika, ${b.sell_price_adult}€/kişi`
+        ).join('\n')
+      : ''
+
+    let itinerary: any
 
     if (OPENAI_API_KEY && OPENAI_API_KEY !== 'PASTE_YOUR_OPENAI_API_KEY_HERE') {
       try {
-        const systemPrompt = `You are an expert travel planner for Cappadocia, Turkey.
-Generate a highly personalized travel itinerary strictly based on the user's preferences below.
+        const systemPrompt = `Sen Kapadokya, Türkiye için uzman bir seyahat planlayıcısısın.
+Kullanıcı tercihlerine göre kişiselleştirilmiş seyahat planı oluştur.
 
-=== USER PROFILE ===
-Travel Type: ${travelType} — ${getTravelTypeGuidance(travelType)}
-Budget: ${budget} — ${getBudgetGuidance(budget)}
-Transport: ${transport} — ${getTransportGuidance(transport)}
-Group Size: ${travelers} people
-Accommodation: ${accommodation}
-Daily Schedule pace: ${dailySchedule}
+=== KULLANICI PROFİLİ ===
+Seyahat tipi: ${travelType} — ${getTravelTypeGuidance(travelType)}
+Bütçe: ${budget} — ${getBudgetGuidance(budget)}
+Ulaşım: ${transport} — ${getTransportGuidance(transport)}
+Grup büyüklüğü: ${travelers} kişi
+Konaklama: ${accommodation}
+Tempo: ${dailySchedule}
 
-=== INTERESTS (strictly prioritize these) ===
+=== İLGİ ALANLARI ===
 ${getInterestGuidance(interests)}
+${agencyToursInfo}
+${agencyBalloonInfo}
 
-=== RULES ===
-- Max ${getDailyPlaceCount(budget, travelType)} places per day
-- No duplicate places across days
-- Balloon rides ONLY at sunrise (05:00–08:00) on Day 1 or 2, ONLY if balloon is in interests
-- Sunset visits (Rose Valley, Red Valley) after 17:30
-- Allowed regions: Göreme, Uçhisar, Ürgüp, Avanos, Ortahisar, Çavuşin, Derinkuyu, Kaymaklı, Ihlara
-- For luxury budget: include premium/private experiences
-- For budget travelers: focus on free/low-cost sites (valleys, viewpoints)
-- For families: ONLY child-safe, easy-access locations
-- Return ONLY valid JSON, no markdown, no explanation
+=== KURALLAR ===
+- Günde max ${getDailyPlaceCount(budget, travelType)} durak
+- Tekrar eden yer yok
+- Balon TERCİHİ VARSA: Gün 1 veya 2'de, start_time: "05:30"
+- Acentanın turları mevcutsa bunları kullan (kod adlarıyla: kırmızı/yeşil/mavi)
+- Kırmızı tur + Yeşil tur AYNI GÜNE KONMAZ (toplam 18+ saat)
+- Gün batımı ziyaretleri: start_time 17:30 sonrası
+- Türk hamamı/Türk gecesi: start_time 19:00 sonrası
+- Yalnızca geçerli JSON döndür, açıklama yok
 
-=== RESPONSE FORMAT ===
+=== YANIT FORMATI ===
 {
   "days": [
     {
       "day": 1,
       "items": [
         {
-          "place_name": "Göreme Open Air Museum",
+          "place_name": "Yer Adı",
           "category": "museum",
           "estimated_duration_minutes": 120,
-          "description": "UNESCO World Heritage site with rock-cut churches."
+          "description": "Açıklama.",
+          "start_time": "09:00",
+          "end_time": "11:00",
+          "agency_service": { "type": "tour", "slug": "kirmizi-tur", "price": 45, "currency": "EUR" }
         }
       ]
     }
   ]
-}`
+}
 
-        const userPrompt = `Trip: ${startDate} to ${endDate}. Travelers: ${travelers}. Interests: ${interests.join(', ')}. Budget: ${budget}. Transport: ${transport}. Travel type: ${travelType}.`
+Not: agency_service alanı SADECE acentanın tur/balon/aktivite ürünleri için eklenir.`
+
+        const userPrompt = `${startDate} - ${endDate} arası. ${travelers} kişi. İlgiler: ${interests.join(', ')}. Bütçe: ${budget}. Ulaşım: ${transport}. Tip: ${travelType}.`
 
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
             temperature: 0.4,
             response_format: { type: 'json_object' },
           }),
         })
 
         if (!openaiRes.ok) throw new Error(`OpenAI error: ${openaiRes.statusText}`)
-
         const openaiData = await openaiRes.json()
         itinerary = JSON.parse(openaiData.choices[0].message.content)
       } catch (err) {
         console.error('OpenAI failed, falling back to mock:', err)
-        itinerary = generateMockItinerary(startDate, endDate, interests, travelType, budget, transport)
+        itinerary = generateMockItinerary(startDate, endDate, interests, travelType, budget, transport, agencyTours as any[], agencyBalloons as any[])
       }
     } else {
-      itinerary = generateMockItinerary(startDate, endDate, interests, travelType, budget, transport)
+      itinerary = generateMockItinerary(startDate, endDate, interests, travelType, budget, transport, agencyTours as any[], agencyBalloons as any[])
     }
 
-    // ── Google Places verification with cache ──────────────────────────────────
+    // ── Google Places doğrulaması ─────────────────────────────────────────────
     const verifiedDays = []
     for (const day of itinerary.days) {
       const verifiedItems = []
       for (const item of day.items) {
-        const normalizedName = normalizePlaceName(item.place_name)
-
-        const { data: cachedPlace } = await supabase
-          .from('places_cache')
-          .select('*')
-          .eq('place_name_normalized', normalizedName)
-          .limit(1)
-          .maybeSingle()
-
-        if (cachedPlace) {
+        // Agency servislerin place_id'si zaten var, doğrulamaya gerek yok
+        if (item.agency_service) {
           verifiedItems.push({
             ...item,
-            place_id: cachedPlace.place_id,
-            name: cachedPlace.name,
-            formatted_address: cachedPlace.formatted_address,
-            lat: cachedPlace.lat,
-            lng: cachedPlace.lng,
-            rating: cachedPlace.rating,
-            photo_reference: cachedPlace.photo_reference,
+            name: item.name || item.place_name,
+            place_id: item.place_id || `${item.agency_service.type}__${item.agency_service.slug}`,
+            formatted_address: 'Kapadokya, Nevşehir',
+            lat: 38.6431,
+            lng: 34.8347,
           })
+          continue
+        }
+
+        const normalizedName = normalizePlaceName(item.place_name || item.name || '')
+        const { data: cachedPlace } = await supabase
+          .from('places_cache').select('*').eq('place_name_normalized', normalizedName).limit(1).maybeSingle()
+
+        if (cachedPlace) {
+          verifiedItems.push({ ...item, name: cachedPlace.name || item.place_name, place_id: cachedPlace.place_id, formatted_address: cachedPlace.formatted_address, lat: cachedPlace.lat, lng: cachedPlace.lng, rating: cachedPlace.rating, photo_reference: cachedPlace.photo_reference })
         } else {
           let placeInfo = null
-
           if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== 'PASTE_YOUR_GOOGLE_MAPS_API_KEY_HERE') {
             try {
-              const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(item.place_name + ' Cappadocia')}&key=${GOOGLE_MAPS_API_KEY}`
-              const searchRes = await fetch(searchUrl)
-              const searchData = await searchRes.json()
-
-              if (searchData.results?.length > 0) {
-                const place = searchData.results[0]
-                placeInfo = {
-                  place_id: place.place_id,
-                  name: place.name,
-                  formatted_address: place.formatted_address,
-                  lat: place.geometry.location.lat,
-                  lng: place.geometry.location.lng,
-                  rating: place.rating || null,
-                  photo_reference: place.photos?.[0]?.photo_reference || null,
-                }
+              const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent((item.place_name || item.name) + ' Kapadokya')}&key=${GOOGLE_MAPS_API_KEY}`
+              const res = await fetch(searchUrl); const data = await res.json()
+              if (data.results?.length > 0) {
+                const p = data.results[0]
+                placeInfo = { place_id: p.place_id, name: p.name, formatted_address: p.formatted_address, lat: p.geometry.location.lat, lng: p.geometry.location.lng, rating: p.rating || null, photo_reference: p.photos?.[0]?.photo_reference || null }
               }
-            } catch (err) {
-              console.error(`Google Places error for ${item.place_name}:`, err)
-            }
+            } catch (err) { console.error(`Google Places error for ${item.place_name}:`, err) }
           }
-
           if (placeInfo) {
-            await supabase.from('places_cache').insert({
-              place_name_normalized: normalizedName,
-              ...placeInfo,
-            })
-            verifiedItems.push({ ...item, ...placeInfo })
+            await supabase.from('places_cache').insert({ place_name_normalized: normalizedName, ...placeInfo })
+            verifiedItems.push({ ...item, name: placeInfo.name || item.place_name, ...placeInfo })
           } else {
-            verifiedItems.push({ ...item, unverified: true })
+            verifiedItems.push({ ...item, name: item.place_name || item.name, unverified: true, lat: 38.6431, lng: 34.8347, formatted_address: 'Kapadokya, Nevşehir' })
           }
         }
       }
       verifiedDays.push({ ...day, items: verifiedItems })
     }
 
-    // ── Time slot assignment ───────────────────────────────────────────────────
-    const finalDays = verifiedDays.map(day => {
-      let currentTime = new Date('2026-01-01T09:00:00')
-      const itemsWithTime = day.items.map(item => {
-        if (item.place_name.toLowerCase().includes('balloon')) {
-          return { ...item, start_time: '05:00', end_time: '08:00' }
-        }
-        // Push sunset spots to evening
-        const isSunsetSpot = /rose valley|red valley|sunset/i.test(item.place_name)
-        if (isSunsetSpot) {
-          return { ...item, start_time: '17:30', end_time: '19:30' }
-        }
+    // ── Saat ataması ──────────────────────────────────────────────────────────
+    const finalDays = verifiedDays.map(assignTimesToDay)
 
-        const startTime = currentTime.toTimeString().slice(0, 5)
-        currentTime.setMinutes(currentTime.getMinutes() + (item.estimated_duration_minutes || 60))
-        const endTime = currentTime.toTimeString().slice(0, 5)
-        currentTime.setMinutes(currentTime.getMinutes() + 30) // travel buffer
-        return { ...item, start_time: startTime, end_time: endTime }
-      })
-      return { ...day, items: itemsWithTime }
-    })
-
-    return new Response(JSON.stringify({ days: finalDays }), {
+    return new Response(JSON.stringify({ days: finalDays, ai_used: !!(OPENAI_API_KEY && OPENAI_API_KEY !== 'PASTE_YOUR_OPENAI_API_KEY_HERE'), ai_error: null }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
+
   } catch (error) {
     console.error('Error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
