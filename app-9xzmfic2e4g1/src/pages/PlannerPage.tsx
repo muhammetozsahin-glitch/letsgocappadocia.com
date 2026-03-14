@@ -1,274 +1,213 @@
-import { useState, useCallback, memo, type ReactNode } from 'react';
+// src/pages/PlannerPage.tsx
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/db/api';
-import { Form, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod';
-import { format, differenceInDays } from 'date-fns';
-import {
-  Loader2, ArrowRight, ArrowLeft, Sparkles,
-  MapPin, Calendar, Users, Heart,
-  Car, Wallet, CheckCircle2, ChevronRight,
-  PersonStanding,
-} from 'lucide-react';
-import { parseApiError } from '@/utils/errorHandler';
-import { retryWithBackoff, withTimeout } from '@/utils/retryWithBackoff';
+import { format, differenceInDays, addDays } from 'date-fns';
+import { tr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-import { LOADING_STEPS, TRAVEL_TYPE_OPTIONS, BUDGET_OPTIONS, TRANSPORT_OPTIONS, ACCOMMODATION_OPTIONS, INTEREST_OPTIONS } from '@/constants/planner';
+import { parseApiError } from '@/utils/errorHandler';
+import { retryWithBackoff, withTimeout } from '@/utils/retryWithBackoff';
+import { toursApi, balloonsApi, activitiesApi } from '@/db/agency-api';
+import type { Tour, BalloonFlight, Activity } from '@/types/agency';
+import {
+  Calendar, Users, MapPin, ArrowRight, ArrowLeft,
+  Wind, Bus, Zap, CheckCircle2, Clock,
+  Sparkles, Loader2, Home, Mountain,
+  Info, AlertCircle, Minus, Plus,
+} from 'lucide-react';
 import { DateSelector } from '@/components/planner/DateSelector';
-import { TravelerInput } from '@/components/planner/TravelerInput';
-import { AccommodationSelector } from '@/components/planner/AccommodationSelector';
-import { InterestsGrid } from '@/components/planner/InterestsGrid';
-import { TravelTypeSelector } from '@/components/planner/TravelTypeSelector';
-import { TransportSelector } from '@/components/planner/TransportSelector';
-import { BudgetSelector } from '@/components/planner/BudgetSelector';
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-const formSchema = z.object({
-  dateRange: z.object({
-    from: z.date({ required_error: 'Başlangıç tarihi gereklidir' }),
-    to: z.date({ required_error: 'Bitiş tarihi gereklidir' }),
-  })
-    .refine(d => d.from >= new Date(new Date().setHours(0, 0, 0, 0)), {
-      message: 'Başlangıç tarihi bugünden önce olamaz',
-    })
-    .refine(d => d.to > d.from, {
-      message: 'Bitiş tarihi başlangıç tarihinden sonra olmalıdır',
-    })
-    .refine(d => {
-      const days = differenceInDays(d.to, d.from) + 1;
-      return days >= 1 && days <= 14;
-    }, { message: 'Seyahat süresi 1–14 gün arasında olmalıdır' }),
-  travelType: z.string().min(1, 'Seyahat tipi seçiniz'),
-  travelers: z.number().min(1).max(15),
-  accommodation: z.string(),
-  transport: z.string().min(1, 'Ulaşım tercihi seçiniz'),
-  budget: z.string().min(1, 'Bütçe aralığı seçiniz'),
-  interests: z.array(z.string()).min(1, 'En az 1 ilgi alanı seçiniz').max(6),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
-// ─── Steps ────────────────────────────────────────────────────────────────────
+// ─── Adımlar ────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: 'dates',         title: 'Tarihler',       icon: Calendar,       description: 'Ne zaman gidiyorsunuz?' },
-  { id: 'travelType',    title: 'Seyahat Tipi',   icon: PersonStanding, description: 'Nasıl bir seyahat?' },
-  { id: 'travelers',     title: 'Grup & Konaklama', icon: Users,         description: 'Kiminle, nerede kalıyorsunuz?' },
-  { id: 'transport',     title: 'Ulaşım',          icon: Car,            description: 'Nasıl seyahat edeceksiniz?' },
-  { id: 'budget',        title: 'Bütçe',           icon: Wallet,         description: 'Ne kadar harcamayı planlıyorsunuz?' },
-  { id: 'interests',     title: 'İlgi Alanları',   icon: Heart,          description: 'Neleri keşfetmek istersiniz?' },
+  { id: 'dates',    title: 'Tarih & Kişi',       icon: Calendar, desc: 'Ne zaman, kaç kişi?' },
+  { id: 'services', title: 'Tur & Aktiviteler',  icon: Bus,      desc: 'Ne yapmak istiyorsunuz?' },
+  { id: 'prefs',    title: 'Konaklama',           icon: Home,     desc: 'Nasıl bir konaklama?' },
 ] as const;
 
-const PLANNER_ARTWORK_URL = 'https://miaoda-site-img.s3cdn.medo.dev/images/KLing_dcf363ec-bac4-4f85-8e2e-6f520d316a07.jpg';
+type StepId = typeof STEPS[number]['id'];
 
-// ─── Summary label helpers ────────────────────────────────────────────────────
-function getSummaryLabel(stepId: string, values: Partial<FormValues>): string | null {
-  switch (stepId) {
-    case 'dates':
-      if (values.dateRange?.from && values.dateRange?.to)
-        return `${format(values.dateRange.from, 'd MMM')} – ${format(values.dateRange.to, 'd MMM')}`;
-      return null;
-    case 'travelType':
-      return TRAVEL_TYPE_OPTIONS.find(o => o.id === values.travelType)?.label ?? null;
-    case 'travelers':
-      return values.travelers ? `${values.travelers} kişi` : null;
-    case 'transport':
-      return TRANSPORT_OPTIONS.find(o => o.id === values.transport)?.label ?? null;
-    case 'budget':
-      return BUDGET_OPTIONS.find(o => o.id === values.budget)?.label ?? null;
-    case 'interests':
-      return values.interests?.length ? `${values.interests.length} seçildi` : null;
-    default:
-      return null;
-  }
-}
+// Konaklama seçenekleri
+const ACCOMMODATION_OPTIONS = [
+  { id: 'cave',     label: 'Mağara Otel',    desc: 'Eşsiz Kapadokya deneyimi',     icon: Mountain },
+  { id: 'center',   label: 'Merkez Otel',    desc: 'Göreme veya Ürgüp merkezi',     icon: MapPin },
+  { id: 'boutique', label: 'Butik Otel',     desc: 'Küçük, şık tesis',             icon: Home },
+];
 
-function getOptionLabel<T extends { id: string; label: string }>(options: readonly T[], id?: string) {
-  if (!id) return null;
-  return options.find(option => option.id === id)?.label ?? null;
-}
+// ─── Yükleme mesajları ──────────────────────────────────────────────────────
+const LOADING_STEPS = [
+  { label: 'Seçimleriniz hazırlanıyor...', pct: 20 },
+  { label: 'Günler planlanıyor...',         pct: 45 },
+  { label: 'Haritalar doğrulanıyor...',     pct: 65 },
+  { label: 'Rotanız oluşturuluyor!',       pct: 100 },
+];
 
-function StepFieldSection({
-  label,
-  hint,
-  children,
-  trailing,
-}: {
-  label: string;
-  hint: string;
-  children: ReactNode;
-  trailing?: ReactNode;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
-      <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="space-y-3">
-          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
-            {label}
-          </span>
-          <p className="max-w-[32rem] text-sm leading-6 text-[#7e79a7] dark:text-muted-foreground">{hint}</p>
-        </div>
-        {trailing}
-      </div>
-      <div className="relative mt-6">{children}</div>
-    </div>
-  );
-}
-
-// ─── PlannerPage ──────────────────────────────────────────────────────────────
-const PlannerPage = () => {
+// ─── Bileşen ────────────────────────────────────────────────────────────────
+export default memo(function PlannerPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      dateRange: { from: undefined, to: undefined },
-      travelType: '',
-      travelers: 2,
-      accommodation: 'center',
-      transport: '',
-      budget: '',
-      interests: [],
-    },
-  });
+  // Adım 1
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [travelers, setTravelers] = useState(2);
+  const [dateError, setDateError] = useState('');
 
-  const watchedValues = form.watch();
+  // Adım 2 — veritabanından çekilecek
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [balloons, setBalloons] = useState<BalloonFlight[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
-  const nextStep = async () => {
-    const stepId = STEPS[currentStep].id;
-    const fieldMap: Record<string, keyof FormValues | (keyof FormValues)[]> = {
-      dates: 'dateRange',
-      travelType: 'travelType',
-      travelers: ['travelers', 'accommodation'],
-      transport: 'transport',
-      budget: 'budget',
-      interests: 'interests',
-    };
-    const fields = fieldMap[stepId];
-    const isValid = await form.trigger(Array.isArray(fields) ? fields : [fields]);
-    if (isValid && currentStep < STEPS.length - 1) setCurrentStep(p => p + 1);
+  // Seçimler
+  const [selectedTours, setSelectedTours] = useState<string[]>([]);   // tour.id[]
+  const [selectedBalloon, setSelectedBalloon] = useState<string>(''); // balloon.id
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]); // activity.id[]
+
+  // Adım 3
+  const [accommodation, setAccommodation] = useState('center');
+
+  // Adım 2'ye geçince servisleri yükle
+  useEffect(() => {
+    if (step === 1 && tours.length === 0) loadServices();
+  }, [step]);
+
+  const loadServices = async () => {
+    setServicesLoading(true);
+    try {
+      const [t, b, a] = await Promise.all([
+        toursApi.getAll(),
+        balloonsApi.getAll(),
+        activitiesApi.getAll(),
+      ]);
+      setTours(t);
+      setBalloons(b);
+      setActivities(a);
+    } catch { toast.error('Servisler yüklenemedi'); }
+    finally { setServicesLoading(false); }
   };
 
-  const prevStep = () => { if (currentStep > 0) setCurrentStep(p => p - 1); };
+  // Gün sayısı hesapla
+  const numDays = dateRange.from && dateRange.to
+    ? differenceInDays(dateRange.to, dateRange.from) + 1
+    : 0;
 
-  const handleInterestToggle = useCallback((id: string) => {
-    const current = form.getValues('interests');
-    const next = current.includes(id) ? current.filter(i => i !== id) : [...current, id];
-    form.setValue('interests', next, { shouldValidate: true });
-  }, [form]);
+  // Adım 1 validasyon
+  const validateStep1 = () => {
+    if (!dateRange.from || !dateRange.to) { setDateError('Lütfen tarih seçin'); return false; }
+    if (numDays < 1 || numDays > 14) { setDateError('Seyahat süresi 1–14 gün olmalı'); return false; }
+    if (dateRange.from < new Date(new Date().setHours(0,0,0,0))) { setDateError('Başlangıç tarihi bugünden önce olamaz'); return false; }
+    setDateError('');
+    return true;
+  };
 
-  const simulateLoadingSteps = useCallback(() => {
-    setLoadingStep(0);
-    const iv = setInterval(() => {
-      setLoadingStep(prev => {
-        if (prev < LOADING_STEPS.length - 1) return prev + 1;
-        clearInterval(iv);
-        return prev;
-      });
-    }, 2500);
-    return iv;
-  }, []);
+  const nextStep = () => {
+    if (step === 0 && !validateStep1()) return;
+    if (step < STEPS.length - 1) setStep(s => s + 1);
+  };
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
-  const onSubmit = async (data: FormValues) => {
+  const prevStep = () => { if (step > 0) setStep(s => s - 1); };
+
+  const toggleTour = (id: string) => setSelectedTours(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleActivity = (id: string) => setSelectedActivities(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleBalloon = (id: string) => setSelectedBalloon(p => p === id ? '' : id);
+
+  // Kaç tur seçilebilir (gün sayısına göre)
+  const maxTours = Math.max(1, numDays - (selectedBalloon ? 1 : 0) - 1); // 1 gün varış/ayrılış
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!dateRange.from || !dateRange.to) return;
     setLoading(true);
-    console.log("onSubmit called", data);
-    toast("onSubmit called");
-    const iv = simulateLoadingSteps();
+    setLoadingStep(0);
+
+    const iv = setInterval(() => {
+      setLoadingStep(p => p < LOADING_STEPS.length - 1 ? p + 1 : p);
+    }, 1800);
+
     try {
-      const startDate = format(data.dateRange.from, 'yyyy-MM-dd');
-      const endDate   = format(data.dateRange.to,   'yyyy-MM-dd');
-      console.log("Calling API generateItinerary with:", { startDate, endDate, interests: data.interests });
+      const startDate = format(dateRange.from, 'yyyy-MM-dd');
+      const endDate   = format(dateRange.to,   'yyyy-MM-dd');
+
+      // Seçilen servisleri gönder
+      const selectedTourObjects = tours.filter(t => selectedTours.includes(t.id));
+      const selectedBalloonObject = balloons.find(b => b.id === selectedBalloon) || null;
+      const selectedActivityObjects = activities.filter(a => selectedActivities.includes(a.id));
+
       const result: any = await retryWithBackoff(
         () => withTimeout(
           api.generateItinerary({
-            startDate,
-            endDate,
-            interests: data.interests,
-            dailySchedule: data.travelType === 'family' ? 'relaxed' : data.budget === 'luxury' ? 'relaxed' : 'moderate',
-            travelType: data.travelType,
-            accommodation: data.accommodation,
-            transport: data.transport,
-            budget: data.budget,
-            travelers: data.travelers,
+            startDate, endDate,
+            travelers,
+            accommodation,
+            // Yeni: direkt seçilen servisler
+            selectedTours: selectedTourObjects.map(t => ({
+              id: t.id, code: t.code, name: t.name, slug: t.slug,
+              start_time: t.start_time, end_time: t.end_time,
+              duration_hours: t.duration_hours, price_adult: t.group_price_adult,
+              currency: t.currency, cover_image: t.cover_image,
+              itinerary: t.itinerary || [],
+            })),
+            selectedBalloon: selectedBalloonObject ? {
+              id: selectedBalloonObject.id, name: selectedBalloonObject.name,
+              slug: selectedBalloonObject.slug, flight_time: selectedBalloonObject.flight_time || '05:30',
+              duration_minutes: selectedBalloonObject.duration_minutes,
+              price_adult: selectedBalloonObject.sell_price_adult,
+              currency: selectedBalloonObject.currency, cover_image: selectedBalloonObject.cover_image,
+            } : null,
+            selectedActivities: selectedActivityObjects.map(a => ({
+              id: a.id, name: a.name, slug: a.slug,
+              duration_minutes: a.duration_minutes, price_adult: a.sell_price_adult,
+              currency: a.currency, cover_image: a.cover_image,
+              start_time: a.time_slots?.[0]?.time || '10:00',
+            })),
+            // Legacy (backward compat)
+            interests: [
+              ...(selectedBalloon ? ['balloon'] : []),
+              ...(selectedTourObjects.some(t => t.code === 'red') ? ['history'] : []),
+              'nature',
+            ],
+            travelType: 'couple', budget: 'moderate', transport: 'mixed',
+            dailySchedule: 'moderate',
           }),
-          45000,
+          60000,
           new Error('Sunucu yanıt vermiyor, lütfen tekrar deneyin.')
         ),
         { maxRetries: 2, initialDelay: 1000, maxDelay: 5000 }
       );
+
       clearInterval(iv);
 
-      // Kullanıcıya AI/mock durumunu bildir
-      if (!result.ai_used) {
-        toast.warning('Demo rota oluşturuldu', {
-          description: result.ai_error ?? 'AI kullanılamadı, örnek rota gösteriliyor.',
-          duration: 10000,
-        });
-      }
-
+      const tripTitle = buildTripTitle(selectedTourObjects, !!selectedBalloon);
       const itinerary = { days: result.days };
+
       if (user) {
         const saved = await api.saveTrip({
-          user_id: user.id,
-          title: 'Kapadokya Gezisi',
-          destination: 'Cappadocia',
-          start_date: startDate,
-          end_date: endDate,
-          preferences: {
-              startDate,
-              endDate,
-              interests: data.interests,
-              travelType: data.travelType,
-              accommodation: data.accommodation,
-              transport: data.transport,
-              budget: data.budget,
-              travelers: data.travelers,
-            },
+          user_id: user.id, title: tripTitle,
+          destination: 'Cappadocia', start_date: startDate, end_date: endDate,
+          preferences: { startDate, endDate, travelers, accommodation,
+            selectedTourIds: selectedTours, selectedBalloonId: selectedBalloon,
+            selectedActivityIds: selectedActivities },
           itinerary,
         });
         navigate(`/trip/${saved.id}`);
-        toast.success('Rotanız hazır!');
+        toast.success('Planınız hazır!');
       } else {
         sessionStorage.setItem('pending_trip', JSON.stringify({
-          title: 'Kapadokya Gezisi',
-          destination: 'Cappadocia',
-          start_date: startDate,
-          end_date: endDate,
-          preferences: {
-            startDate,
-            endDate,
-            interests: data.interests,
-            travelType: data.travelType,
-            accommodation: data.accommodation,
-            transport: data.transport,
-            budget: data.budget,
-            travelers: data.travelers,
-          },
-          itinerary,
+          title: tripTitle, destination: 'Cappadocia', start_date: startDate, end_date: endDate,
+          preferences: {}, itinerary,
         }));
         navigate('/trip/preview');
-        toast.success('Rotanız hazır!', {
-          description: 'Önizleme açıldı. İsterseniz daha sonra giriş yapıp hesabınıza kaydedebilirsiniz.',
-        });
       }
     } catch (err) {
-    console.log("onSubmit error:", err);
       clearInterval(iv);
-      if (err instanceof Error && err.name === 'AbortError') return;
       toast.error('Hata oluştu', { description: parseApiError(err).userMessage });
     } finally {
       setLoading(false);
@@ -276,675 +215,424 @@ const PlannerPage = () => {
     }
   };
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
-  const currentStepData = STEPS[currentStep];
-  const currentSummaryLabel = getSummaryLabel(currentStepData.id, watchedValues);
-  const isFinalStep = currentStep === STEPS.length - 1;
-  const loadingConfig = LOADING_STEPS[loadingStep];
-  const LoadingStepIcon = loadingConfig.icon;
-  const tripLength = watchedValues.dateRange?.from && watchedValues.dateRange?.to
-    ? differenceInDays(watchedValues.dateRange.to, watchedValues.dateRange.from) + 1
-    : null;
-  const selectedTravelType = getOptionLabel(TRAVEL_TYPE_OPTIONS, watchedValues.travelType);
-  const selectedAccommodation = getOptionLabel(ACCOMMODATION_OPTIONS, watchedValues.accommodation);
-  const selectedTransport = getOptionLabel(TRANSPORT_OPTIONS, watchedValues.transport);
-  const selectedBudget = getOptionLabel(BUDGET_OPTIONS, watchedValues.budget);
-  const selectedInterests = INTEREST_OPTIONS.filter(option => watchedValues.interests?.includes(option.id));
-  const summaryCards = [
-    {
-      icon: Calendar,
-      label: 'Takvim',
-      value: watchedValues.dateRange?.from && watchedValues.dateRange?.to
-        ? `${format(watchedValues.dateRange.from, 'd MMM')} – ${format(watchedValues.dateRange.to, 'd MMM')}`
-        : 'Tarih seçimi bekleniyor',
-      detail: tripLength ? `${tripLength} gün` : 'Sezon ve tempo buna göre ayarlanır',
-    },
-    {
-      icon: PersonStanding,
-      label: 'Seyahat kurgusu',
-      value: selectedTravelType ?? 'Tarz seçimi bekleniyor',
-      detail: `${watchedValues.travelers ?? 0} kişi • ${selectedAccommodation ?? 'Konaklama seçimi bekleniyor'}`,
-    },
-    {
-      icon: Car,
-      label: 'Ulaşım & bütçe',
-      value: selectedTransport ?? 'Ulaşım seçimi bekleniyor',
-      detail: selectedBudget ?? 'Bütçe seçimi bekleniyor',
-    },
-    {
-      icon: Heart,
-      label: 'Deneyim odağı',
-      value: selectedInterests.length
-        ? selectedInterests.slice(0, 2).map(option => option.label).join(' • ')
-        : 'İlgi alanı seçimi bekleniyor',
-      detail: selectedInterests.length > 2
-        ? `+${selectedInterests.length - 2} ilgi alanı daha`
-        : `${selectedInterests.length}/6 seçim`,
-    },
-  ];
+  const buildTripTitle = (selTours: Tour[], hasBalloon: boolean) => {
+    const parts: string[] = [];
+    if (hasBalloon) parts.push('Balon');
+    selTours.forEach(t => parts.push(t.name.split(' ')[0]));
+    if (parts.length === 0) return 'Kapadokya Gezisi';
+    return `Kapadokya: ${parts.join(' + ')}`;
+  };
 
-  // ── Loading screen ──────────────────────────────────────────────────────────
+  // ── Loading ekranı ──────────────────────────────────────────────────────
   if (loading) {
+    const prog = LOADING_STEPS[loadingStep]?.pct ?? 0;
     return (
-      <div className="relative min-h-screen overflow-hidden bg-[#f7f3ff] dark:bg-background">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-24 -top-20 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-          <div className="absolute -bottom-28 right-0 h-80 w-80 rounded-full bg-violet-200/50 blur-3xl dark:bg-primary/15" />
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-secondary relative overflow-hidden">
+        <div className="absolute inset-0 opacity-15">
+          <img src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=2400" alt="" className="w-full h-full object-cover grayscale" />
         </div>
-
-        <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-6 lg:px-6">
-          <div className="grid w-full gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="relative overflow-hidden rounded-[34px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] text-white shadow-[0_30px_80px_rgba(109,69,221,0.32)]">
-              <div className="absolute inset-0">
-                <img
-                  src={PLANNER_ARTWORK_URL}
-                  alt="Kapadokya balonları"
-                  className="h-full w-full object-cover opacity-55"
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-[#4f21c6]/85" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_38%)]" />
-              </div>
-
-              <div className="relative flex h-full min-h-[620px] flex-col p-5 sm:p-6">
-                <div className="flex items-center gap-3 px-1">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 ring-1 ring-white/20 backdrop-blur-md">
-                    <MapPin className="h-5 w-5" />
-                  </div>
-                  <div className="leading-none">
-                    <p className="text-lg font-black uppercase tracking-[0.08em]">Kapadokya</p>
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-white/72">AI oluşturuyor</p>
-                  </div>
-                </div>
-
-                <div className="mt-20 rounded-[28px] border border-white/14 bg-white/10 p-5 backdrop-blur-xl sm:p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/16">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-2">
-                      <h1 className="text-[2rem] font-black leading-[0.95] tracking-[-0.04em]">
-                        Rotanızı
-                        <br />
-                        Hazırlıyoruz
-                      </h1>
-                      <p className="max-w-[220px] text-base font-medium leading-7 text-white/82">
-                        Tercihlerinize göre premium bir seyahat akışı kuruluyor.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 space-y-2">
-                    {LOADING_STEPS.map((step, index) => {
-                      const StepIcon = step.icon;
-                      const isActive = index === loadingStep;
-                      const isCompleted = index < loadingStep;
-
-                      return (
-                        <motion.div
-                          key={step.label}
-                          animate={{ opacity: isActive || isCompleted ? 1 : 0.56 }}
-                          className={cn(
-                            'flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200',
-                            isActive
-                              ? 'bg-[#5d31d3]/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]'
-                              : isCompleted
-                                ? 'bg-white/10'
-                                : 'bg-transparent'
-                          )}
-                        >
-                          <div className={cn(
-                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1',
-                            isActive
-                              ? 'bg-white text-[#6d45dd] ring-white/35'
-                              : isCompleted
-                                ? 'bg-white/18 text-white ring-white/14'
-                                : 'bg-white/8 text-white/75 ring-white/12'
-                          )}>
-                            {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold tracking-[-0.02em] text-white">{step.label}</p>
-                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">%{step.progress} tamamlandı</p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-auto rounded-[24px] border border-white/14 bg-white/10 px-4 py-4 backdrop-blur-md">
-                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.26em] text-white/72">
-                    <span>Canlı Durum</span>
-                    <span>%{loadingConfig.progress}</span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/16">
-                    <motion.div
-                      className="h-full rounded-full bg-white"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${loadingConfig.progress}%` }}
-                      transition={{ duration: 0.45, ease: 'easeOut' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </aside>
-
-            <section className="relative overflow-hidden rounded-[34px] bg-white/82 shadow-[0_20px_60px_rgba(86,48,166,0.10)] ring-1 ring-white/70 backdrop-blur-xl dark:bg-card/92 dark:ring-white/10">
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute inset-y-0 left-0 hidden w-[44%] xl:block">
-                  <img
-                    src={PLANNER_ARTWORK_URL}
-                    alt=""
-                    className="h-full w-full object-cover opacity-[0.12] saturate-75"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#f7f0ff]/40 via-[#fbf9ff]/88 to-white dark:from-primary/10 dark:to-card" />
-                </div>
-                <div className="absolute left-[10%] top-[30%] hidden h-16 w-16 rounded-full bg-[#9f7cff]/18 blur-sm xl:block" />
-                <div className="absolute left-[13%] top-[35%] hidden h-4 w-4 rounded-full bg-[#c4a4ff]/80 xl:block" />
-                <div className="absolute bottom-[22%] left-[18%] hidden h-6 w-6 rounded-full bg-[#d8c0ff]/70 xl:block" />
-              </div>
-
-              <div className="relative flex min-h-[620px] flex-col justify-center px-6 py-8 sm:px-10 lg:px-14 lg:py-12 xl:pl-[18rem] xl:pr-16">
-                <div className="max-w-[760px] space-y-8">
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-black uppercase tracking-[0.24em] text-[#8b67f0] dark:text-primary">
-                    <span>AI rota motoru</span>
-                    <span className="h-px w-16 bg-[#8b67f0]/25 dark:bg-primary/30" />
-                    <span>Hazırlık aşaması</span>
-                  </div>
-
-                  <div className="space-y-5">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-gradient-to-br from-[#7f5cf0] to-[#6d45dd] text-white shadow-[0_24px_48px_rgba(109,69,221,0.28)]">
-                      <motion.div
-                        key={loadingStep}
-                        initial={{ opacity: 0, scale: 0.88 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.28, ease: 'easeOut' }}
-                      >
-                        <LoadingStepIcon className="h-9 w-9" />
-                      </motion.div>
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={loadingStep}
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -16 }}
-                        transition={{ duration: 0.28, ease: 'easeOut' }}
-                        className="space-y-4"
-                      >
-                        <h2 className="max-w-[640px] text-4xl font-black uppercase leading-[0.92] tracking-[-0.06em] text-[#20244f] sm:text-5xl lg:text-6xl dark:text-white">
-                          {loadingConfig.label}
-                        </h2>
-                        <p className="max-w-[560px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
-                          Kapadokya için günlük akış, mesafeler, deneyim yoğunluğu ve sahne önerileri tek bir rota içinde birleştiriliyor.
-                        </p>
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-
-                  <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
-                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
-                    <div className="relative space-y-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
-                            Oluşturma İlerlemesi
-                          </span>
-                          <p className="mt-3 text-sm font-medium leading-6 text-[#7e79a7] dark:text-muted-foreground">
-                            Son kalite kontrol ve sahne eşleştirmeleri tamamlanıyor.
-                          </p>
-                        </div>
-                        <div className="rounded-full bg-[#f3ebff] px-4 py-2 text-sm font-black text-[#7150d7] dark:bg-primary/10 dark:text-white">
-                          %{loadingConfig.progress}
-                        </div>
-                      </div>
-
-                      <div className="h-3 overflow-hidden rounded-full bg-[#efe7ff] dark:bg-white/10">
-                        <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-[#7f5cf0] to-[#6d45dd]"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${loadingConfig.progress}%` }}
-                          transition={{ duration: 0.6, ease: 'easeInOut' }}
-                        />
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Tempo</p>
-                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">Dengeli akış</p>
-                        </div>
-                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Veri Kaynağı</p>
-                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">AI + harita</p>
-                        </div>
-                        <div className="rounded-[24px] border border-[#efe6ff] bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0]">Son Dokunuş</p>
-                          <p className="mt-2 text-lg font-black tracking-[-0.04em] text-[#20244f] dark:text-white">Görsel detaylar</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs font-medium italic tracking-[0.02em] text-[#7e79a7] dark:text-muted-foreground">
-                    Size özel Kapadokya efsanesi kurgulanıyor; rota hazır olduğunda otomatik olarak yönlendirileceksiniz.
-                  </p>
-                </div>
-              </div>
-            </section>
+        <div className="absolute inset-0 bg-secondary/60" />
+        <div className="relative z-10 max-w-md w-full px-8 text-center space-y-10">
+          <div className="relative mx-auto w-24 h-24">
+            <div className="absolute inset-0 bg-primary rounded-2xl animate-pulse opacity-30 scale-110" />
+            <div className="w-24 h-24 bg-primary rounded-2xl flex items-center justify-center shadow-2xl shadow-primary/30">
+              <Loader2 className="h-11 w-11 text-white animate-spin" />
+            </div>
           </div>
+          <div className="space-y-5">
+            <AnimatePresence mode="wait">
+              <motion.h2 key={loadingStep} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+                className="text-3xl font-black text-white tracking-tighter uppercase">
+                {LOADING_STEPS[loadingStep]?.label}
+              </motion.h2>
+            </AnimatePresence>
+            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+              <motion.div className="h-full bg-primary rounded-full" animate={{ width: `${prog}%` }} transition={{ duration: 0.6 }} />
+            </div>
+            <div className="flex justify-between text-[10px] font-bold text-white/30 uppercase tracking-widest px-1">
+              <span>Hazırlanıyor</span><span>{prog}%</span>
+            </div>
+          </div>
+          <p className="text-white/30 text-xs font-medium italic">Kapadokya planınız hazırlanıyor...</p>
         </div>
       </div>
     );
   }
 
-  // ── Main layout ─────────────────────────────────────────────────────────────
+  const progress = ((step + 1) / STEPS.length) * 100;
+
   return (
-    <div className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#f7f3ff] dark:bg-background">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-20 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-        <div className="absolute -bottom-28 right-0 h-80 w-80 rounded-full bg-violet-200/50 blur-3xl dark:bg-primary/15" />
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row overflow-hidden">
+      {/* ── Sol sidebar ─────────────────────────────────────────────────── */}
+      <div className="w-full lg:w-[300px] xl:w-[360px] bg-secondary flex flex-col relative overflow-hidden shrink-0">
+        <div className="absolute top-0 left-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="relative z-10 flex flex-col h-full p-8 lg:p-10 gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <MapPin className="h-4 w-4" />
+            </div>
+            <span className="text-base font-black text-white tracking-tight uppercase">
+              Kapadokya <span className="text-primary">Planı</span>
+            </span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl xl:text-4xl font-black text-white leading-none tracking-tighter uppercase">
+              GEZİNİZİ<br /><span className="text-primary">TASARLAYIN</span>
+            </h1>
+            <p className="text-white/35 text-sm font-medium italic">Turlarınızı seçin, plan hazır olsun.</p>
+          </div>
+
+          {/* Adım listesi */}
+          <div className="flex-1 space-y-1.5">
+            {STEPS.map((s, i) => {
+              const Icon = s.icon;
+              const isActive = i === step;
+              const isDone = i < step;
+              return (
+                <motion.div key={s.id} animate={{ opacity: isActive || isDone ? 1 : 0.35 }}
+                  className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all', isActive && 'bg-white/8')}>
+                  <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300',
+                    isActive ? 'bg-primary text-white shadow-md shadow-primary/30 scale-110'
+                    : isDone ? 'bg-white/10 text-primary' : 'bg-white/5 text-white/20')}>
+                    {isDone ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn('text-[9px] font-black uppercase tracking-[.15em]', isActive ? 'text-primary' : 'text-white/25')}>
+                      {String(i + 1).padStart(2, '0')}
+                    </div>
+                    <div className={cn('text-sm font-bold leading-tight', isActive ? 'text-white' : isDone ? 'text-white/60' : 'text-white/30')}>
+                      {s.title}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Özet — seçilen turlar */}
+          {(selectedTours.length > 0 || selectedBalloon) && step > 0 && (
+            <div className="space-y-2 p-3 rounded-xl bg-white/8">
+              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Seçimleriniz</p>
+              {selectedBalloon && (
+                <div className="flex items-center gap-2 text-xs text-sky-300 font-bold">
+                  <Wind className="h-3 w-3" /> Balon turu
+                </div>
+              )}
+              {tours.filter(t => selectedTours.includes(t.id)).map(t => (
+                <div key={t.id} className="flex items-center gap-2 text-xs text-orange-300 font-bold">
+                  <Bus className="h-3 w-3" /> {t.name}
+                </div>
+              ))}
+              {activities.filter(a => selectedActivities.includes(a.id)).map(a => (
+                <div key={a.id} className="flex items-center gap-2 text-xs text-purple-300 font-bold">
+                  <Zap className="h-3 w-3" /> {a.name}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* İlerleme */}
+          <div className="space-y-2 pt-2 border-t border-white/8">
+            <div className="flex justify-between text-[10px] font-bold text-white/25 uppercase tracking-widest">
+              <span>İlerleme</span><span>{Math.round(progress)}%</span>
+            </div>
+            <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+              <motion.div className="h-full bg-primary rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.5 }} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-[1600px] flex-col gap-4 px-4 py-4 lg:px-6 lg:py-6 xl:flex-row">
-        <aside className="relative overflow-hidden rounded-[34px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] text-white shadow-[0_30px_80px_rgba(109,69,221,0.32)] xl:w-[320px] xl:min-w-[320px]">
-          <div className="absolute inset-0">
-            <img
-              src={PLANNER_ARTWORK_URL}
-              alt="Kapadokya balonları"
-              className="h-full w-full object-cover opacity-55"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-[#4f21c6]/85" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_38%)]" />
-          </div>
+      {/* ── Sağ içerik ──────────────────────────────────────────────────── */}
+      <div className="flex-1 bg-white dark:bg-card overflow-y-auto">
+        <div className="max-w-2xl mx-auto min-h-full flex flex-col px-8 py-10 lg:py-14 lg:px-16">
+          <AnimatePresence mode="wait">
+            <motion.div key={step} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3 }} className="flex-1 flex flex-col gap-8">
 
-          <div className="relative flex h-full min-h-[340px] flex-col p-4 sm:p-5">
-            <div className="flex items-center gap-3 px-1">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 ring-1 ring-white/20 backdrop-blur-md">
-                <MapPin className="h-5 w-5" />
-              </div>
-              <div className="leading-none">
-                <p className="text-lg font-black uppercase tracking-[0.08em]">Kapadokya</p>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.28em] text-white/72">Efsanesi</p>
-              </div>
-            </div>
-
-            <div className="mt-24 rounded-[28px] border border-white/14 bg-white/10 p-5 backdrop-blur-xl sm:mt-28 sm:p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/16">
-                  <MapPin className="h-5 w-5" />
+              {/* Başlık */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-[10px] font-black text-primary uppercase tracking-[.2em]">
+                  <span>Adım {step + 1}/{STEPS.length}</span>
+                  <span className="w-12 h-0.5 bg-primary/20 rounded-full" />
+                  <span>{STEPS[step].title}</span>
                 </div>
-                <div className="space-y-2">
-                  <h1 className="text-[2rem] font-black leading-[0.95] tracking-[-0.04em]">
-                    Rotanızı
-                    <br />
-                    Tasarlayın
-                  </h1>
-                  <p className="max-w-[220px] text-base font-medium leading-7 text-white/82">
-                    Size özel kurgulanmış seyahat mimarisi.
-                  </p>
-                </div>
+                <h2 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-tight uppercase">
+                  {STEPS[step].desc}
+                </h2>
               </div>
 
-              <div className="mt-6 space-y-2">
-                {STEPS.map((step, i) => {
-                  const isActive = i === currentStep;
-                  const isCompleted = i < currentStep;
-
-                  return (
-                    <motion.button
-                      key={step.id}
-                      type="button"
-                      disabled={i > currentStep}
-                      onClick={() => {
-                        if (i <= currentStep) {
-                          setCurrentStep(i);
-                        }
-                      }}
-                      animate={{ opacity: isActive || isCompleted ? 1 : 0.56 }}
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200',
-                        isActive
-                          ? 'bg-[#5d31d3]/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]'
-                          : isCompleted
-                            ? 'bg-white/10 hover:bg-white/14'
-                            : 'cursor-default bg-transparent'
-                      )}
-                    >
-                      <div className={cn(
-                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ring-1 transition-all duration-200',
-                        isActive
-                          ? 'bg-white text-[#6d45dd] ring-white/35'
-                          : isCompleted
-                            ? 'bg-white/18 text-white ring-white/14'
-                            : 'bg-white/8 text-white/75 ring-white/12'
-                      )}>
-                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+              {/* ─── ADIM 1: Tarih + Kişi ─────────────────────────────── */}
+              {step === 0 && (
+                <div className="space-y-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-[.2em] text-primary">Tarihler</label>
+                    <DateSelector date={dateRange as any} onDateChange={setDateRange as any}
+                      isOpen={dateOpen} onOpenChange={setDateOpen} />
+                    {dateError && <p className="text-sm text-red-500 flex items-center gap-1.5"><AlertCircle className="h-4 w-4" />{dateError}</p>}
+                    {numDays > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-primary font-bold bg-primary/8 rounded-xl px-4 py-3">
+                        <Clock className="h-4 w-4" />
+                        {numDays} günlük Kapadokya gezisi
+                        {numDays >= 4 && ' — Tüm büyük turlar için ideal'}
+                        {numDays === 3 && ' — Balon + Kırmızı Tur için ideal'}
+                        {numDays <= 2 && ' — Kısa kaçamak'}
                       </div>
+                    )}
+                  </div>
 
-                      <span className={cn(
-                        'flex-1 text-base font-bold tracking-[-0.02em]',
-                        isActive ? 'text-white' : 'text-white/78'
-                      )}>
-                        {step.title}
-                      </span>
-
-                      {isActive && <ChevronRight className="h-4 w-4 text-white/70" />}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-auto px-1 pt-5">
-              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.26em] text-white/72">
-                <span>İlerleme</span>
-                <span>%{Math.round(progress)}</span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/16">
-                <motion.div
-                  className="h-full rounded-full bg-white"
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.45, ease: 'easeOut' }}
-                />
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <section className="relative flex-1 overflow-hidden rounded-[34px] bg-white/82 shadow-[0_20px_60px_rgba(86,48,166,0.10)] ring-1 ring-white/70 backdrop-blur-xl dark:bg-card/92 dark:ring-white/10">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-y-0 left-0 hidden w-[40%] xl:block">
-              <img
-                src={PLANNER_ARTWORK_URL}
-                alt=""
-                className="h-full w-full object-cover opacity-[0.14] saturate-75"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#f7f0ff]/40 via-[#fbf9ff]/88 to-white dark:from-primary/10 dark:to-card" />
-            </div>
-            <div className="absolute left-[9%] top-[34%] hidden h-14 w-14 rounded-full bg-[#9f7cff]/18 blur-sm xl:block" />
-            <div className="absolute left-[12%] top-[38%] hidden h-4 w-4 rounded-full bg-[#c4a4ff]/80 xl:block" />
-            <div className="absolute bottom-[24%] left-[18%] hidden h-5 w-5 rounded-full bg-[#d8c0ff]/70 xl:block" />
-          </div>
-
-          <div className="relative flex min-h-[calc(100vh-120px)] flex-col">
-            <div className="flex-1 overflow-y-auto">
-              <div className="mx-auto flex min-h-full w-full max-w-[1080px] flex-col px-6 py-8 sm:px-10 lg:px-14 lg:py-12 xl:pl-[18rem] xl:pr-16">
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-1 flex-col">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={currentStep}
-                        initial={{ opacity: 0, x: 24 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -24 }}
-                        transition={{ duration: 0.32, ease: 'easeOut' }}
-                        className="flex-1 space-y-10 lg:space-y-14"
-                      >
-                        <div className="space-y-5 pt-2 lg:pt-10">
-                          <div className="flex flex-wrap items-center gap-3 text-xs font-black uppercase tracking-[0.24em] text-[#8b67f0] dark:text-primary">
-                            <span>Adım {currentStep + 1}/{STEPS.length}</span>
-                            <span className="h-px w-16 bg-[#8b67f0]/25 dark:bg-primary/30" />
-                            <span>{currentStepData.title}</span>
-                          </div>
-
-                          <div className="max-w-[560px] space-y-4">
-                            <h2 className="text-4xl font-black uppercase leading-[0.92] tracking-[-0.06em] text-[#20244f] sm:text-5xl lg:text-6xl dark:text-white">
-                              {currentStepData.description}
-                            </h2>
-                            {currentSummaryLabel ? (
-                              <div className="inline-flex items-center rounded-full bg-[#f3ebff] px-4 py-2 text-sm font-semibold text-[#7150d7] shadow-sm dark:bg-primary/10 dark:text-primary-foreground">
-                                {currentSummaryLabel}
-                              </div>
-                            ) : (
-                              <p className="max-w-[440px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
-                                Birkaç kısa adımda tercihlerinizi toplayıp size özel rota oluşturuyoruz.
-                              </p>
-                            )}
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-[.2em] text-primary">Kaç Kişi?</label>
+                    <div className="flex items-center gap-6 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl">
+                      {[{ label: 'Yetişkin', sub: '13+ yaş', val: travelers, set: setTravelers, min: 1 }].map(p => (
+                        <div key={p.label} className="flex items-center justify-between w-full">
+                          <div><p className="font-bold text-gray-800 dark:text-white">{p.label}</p><p className="text-xs text-gray-500">{p.sub}</p></div>
+                          <div className="flex items-center gap-4">
+                            <button onClick={() => p.set(Math.max(p.min, p.val - 1))} disabled={p.val <= p.min}
+                              className="w-9 h-9 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-primary hover:text-primary transition-all disabled:opacity-30">
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-8 text-center text-xl font-black text-gray-900 dark:text-white">{p.val}</span>
+                            <button onClick={() => p.set(p.val + 1)}
+                              className="w-9 h-9 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-primary hover:text-primary transition-all">
+                              <Plus className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                        <div className="max-w-[760px]">
-                          {currentStep === 0 && (
-                            <StepFieldSection
-                              label="Seyahat Takvimi"
-                              hint="Gidiş ve dönüş aralığını seçin; öneriler sezon, yoğunluk ve günlük tempoya göre uyarlansın."
-                            >
-                              <FormField control={form.control} name="dateRange" render={({ field }) => (
-                                <FormItem className="space-y-4">
-                                  <DateSelector
-                                    date={field.value}
-                                    onDateChange={field.onChange}
-                                    isOpen={datePickerOpen}
-                                    onOpenChange={setDatePickerOpen}
-                                  />
-                                  <FormMessage />
-                                </FormItem>
-                              )} />
-                            </StepFieldSection>
-                          )}
-
-                          {currentStep === 1 && (
-                            <StepFieldSection
-                              label="Seyahat Tarzı"
-                              hint="Rahat, romantik ya da hareketli bir akış mı istediğinizi seçin; tüm rota önerileri buna göre şekillensin."
-                              trailing={<span className="rounded-full bg-[#f3ebff] px-3 py-2 text-xs font-bold text-[#7150d7] dark:bg-primary/10 dark:text-white">Tek seçim</span>}
-                            >
-                              <FormField control={form.control} name="travelType" render={({ field }) => (
-                                <FormItem className="space-y-4">
-                                  <TravelTypeSelector selectedId={field.value} onSelect={field.onChange} />
-                                  <FormMessage />
-                                </FormItem>
-                              )} />
-                            </StepFieldSection>
-                          )}
-
-                          {currentStep === 2 && (
-                            <div className="space-y-8">
-                              <StepFieldSection
-                                label="Grup Büyüklüğü"
-                                hint="Kaç kişi seyahat edeceğinizi belirleyin; günlük plan ve rezervasyon önerileri buna göre dengelensin."
-                              >
-                                <FormField control={form.control} name="travelers" render={({ field }) => (
-                                  <FormItem className="space-y-4">
-                                    <TravelerInput value={field.value} onChange={field.onChange} />
-                                    <FormMessage />
-                                  </FormItem>
-                                )} />
-                              </StepFieldSection>
-                              <StepFieldSection
-                                label="Konaklama Tarzı"
-                                hint="Hangi konaklama hissini istediğinizi seçin; rota merkezleri ve mola önerileri bu tona göre düzenlensin."
-                              >
-                                <FormField control={form.control} name="accommodation" render={({ field }) => (
-                                  <FormItem className="space-y-4">
-                                    <AccommodationSelector selectedId={field.value} onSelect={field.onChange} />
-                                    <FormMessage />
-                                  </FormItem>
-                                )} />
-                              </StepFieldSection>
-                            </div>
-                          )}
-
-                          {currentStep === 3 && (
-                            <StepFieldSection
-                              label="Ulaşım Tercihi"
-                              hint="En rahat hareket edeceğiniz ulaşım modelini seçin; gün içi rota akışı ve mesafeler buna göre kurgulansın."
-                            >
-                              <FormField control={form.control} name="transport" render={({ field }) => (
-                                <FormItem className="space-y-4">
-                                  <TransportSelector selectedId={field.value} onSelect={field.onChange} />
-                                  <FormMessage />
-                                </FormItem>
-                              )} />
-                            </StepFieldSection>
-                          )}
-
-                          {currentStep === 4 && (
-                            <StepFieldSection
-                              label="Günlük Bütçe"
-                              hint="Harcamak istediğiniz günlük aralığı belirleyin; konaklama, deneyim ve tempo önerileri buna göre optimize edilsin."
-                            >
-                              <FormField control={form.control} name="budget" render={({ field }) => (
-                                <FormItem className="space-y-4">
-                                  <BudgetSelector selectedId={field.value} onSelect={field.onChange} />
-                                  <FormMessage />
-                                </FormItem>
-                              )} />
-                            </StepFieldSection>
-                          )}
-
-                          {currentStep === 5 && (
-                            <FormField control={form.control} name="interests" render={({ field }) => (
-                              <StepFieldSection
-                                label="İlgi Alanları"
-                                hint="En fazla altı ilgi alanı seçin; rota önerileri gerçekten görmek istediğiniz deneyimlere odaklansın."
-                                trailing={<span className="rounded-full bg-[#f3ebff] px-3 py-2 text-xs font-bold text-[#7150d7] dark:bg-primary/10 dark:text-white">{field.value.length}/6 seçildi</span>}
-                              >
-                                <FormItem className="space-y-4">
-                                  <InterestsGrid selectedInterests={field.value} onToggle={handleInterestToggle} />
-                                  <FormMessage />
-                                </FormItem>
-                              </StepFieldSection>
-                            )} />
-                          )}
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
-
-                    <div className="mt-10 border-t border-[#ebe2fb] pt-8 dark:border-white/10">
-                      {isFinalStep ? (
-                        <div className="space-y-5">
-                          <div className="relative overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,242,255,0.94))] p-5 shadow-[0_20px_46px_rgba(109,69,221,0.10)] ring-1 ring-[#f3ebff] sm:p-7 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
-                            <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#eadbff] blur-3xl dark:bg-primary/20" />
-                            <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-                              <div className="space-y-5">
-                                <div className="space-y-3">
-                                  <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-[#7d55eb] shadow-sm dark:bg-white/10 dark:text-white">
-                                    Final Özet
-                                  </span>
-                                  <h3 className="text-3xl font-black uppercase leading-[0.96] tracking-[-0.05em] text-[#20244f] sm:text-[2.4rem] dark:text-white">
-                                    Tercihleriniz rota oluşturmaya hazır.
-                                  </h3>
-                                  <p className="max-w-[620px] text-sm leading-7 text-[#7e79a7] dark:text-muted-foreground">
-                                    Aşağıdaki özet üzerinden son kez kontrol edin; oluşturma sonrası size en uygun günlük akış, deneyimler ve önerilen duraklar hazırlanacak.
-                                  </p>
-                                </div>
-
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  {summaryCards.map(({ icon: Icon, label, value, detail }) => (
-                                    <div
-                                      key={label}
-                                      className="rounded-[24px] border border-[#efe6ff] bg-white/82 p-4 shadow-[0_10px_30px_rgba(95,66,171,0.06)] dark:border-white/10 dark:bg-white/5"
-                                    >
-                                      <div className="flex items-start gap-3">
-                                        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3ebff] text-[#7150d7] dark:bg-primary/10 dark:text-white">
-                                          <Icon className="h-4 w-4" />
-                                        </div>
-                                        <div className="min-w-0 space-y-1">
-                                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#8b67f0] dark:text-primary">{label}</p>
-                                          <p className="text-base font-black tracking-[-0.03em] text-[#20244f] dark:text-white">{value}</p>
-                                          <p className="text-sm leading-6 text-[#7e79a7] dark:text-muted-foreground">{detail}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              <div className="rounded-[28px] bg-gradient-to-br from-[#6d45dd] via-[#7a58e6] to-[#8b67f0] p-[1px] shadow-[0_24px_60px_rgba(109,69,221,0.28)]">
-                                <div className="h-full rounded-[27px] bg-[linear-gradient(180deg,rgba(88,48,197,0.94),rgba(64,27,160,0.96))] p-5 text-white sm:p-6">
-                                  <span className="inline-flex rounded-full bg-white/14 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-white/90">
-                                    Hazır olduğunda başlat
-                                  </span>
-                                  <h4 className="mt-4 text-2xl font-black uppercase leading-tight tracking-[-0.05em]">
-                                    AI rota üretimini şimdi tetikleyin.
-                                  </h4>
-                                  <p className="mt-3 text-sm leading-7 text-white/78">
-                                    Oluşturma süreci birkaç saniye sürebilir; rota hazır olduğunda detay sayfasına yönlendirilirsiniz.
-                                  </p>
-
-                                  <div className="mt-5 space-y-3 rounded-[24px] border border-white/12 bg-white/10 p-4 backdrop-blur-md">
-                                    <div className="flex items-center gap-3">
-                                      <CheckCircle2 className="h-4 w-4 text-white" />
-                                      <span className="text-sm font-semibold text-white/90">Gün gün akış ve önerilen duraklar</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <CheckCircle2 className="h-4 w-4 text-white" />
-                                      <span className="text-sm font-semibold text-white/90">Tercihlere göre tempo ve bütçe dengesi</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <CheckCircle2 className="h-4 w-4 text-white" />
-                                      <span className="text-sm font-semibold text-white/90">Harita uyumlu rota ve deneyim önerileri</span>
-                                    </div>
-                                  </div>
-
-                                  <Button
-                                    type="button" onClick={form.handleSubmit(onSubmit)}
-                                    size="lg"
-                                    className="mt-6 h-13 w-full rounded-full bg-white px-8 text-sm font-black uppercase tracking-[0.18em] text-[#6d45dd] shadow-[0_18px_36px_rgba(26,6,84,0.24)] hover:bg-white/95"
-                                  >
-                                    Rotayı Oluştur
-                                    <Sparkles className="ml-2 h-4 w-4 animate-pulse" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
+              {/* ─── ADIM 2: Tur & Aktivite Seçimi ───────────────────── */}
+              {step === 1 && (
+                <div className="space-y-8">
+                  {servicesLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Balon */}
+                      {balloons.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Wind className="h-4 w-4 text-sky-500" />
+                            <label className="text-[10px] font-black uppercase tracking-[.2em] text-sky-600">Balon Turu</label>
                           </div>
-
-                          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="lg"
-                              onClick={prevStep}
-                              className="h-12 rounded-full border border-[#ece6fb] bg-white px-7 text-sm font-bold text-[#7b68b4] shadow-[0_10px_30px_rgba(95,66,171,0.08)] hover:bg-[#faf7ff] hover:text-[#6d45dd] dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground"
-                            >
-                              <ArrowLeft className="mr-2 h-4 w-4" />
-                              Düzenlemeye Dön
-                            </Button>
-
-                            <p className="text-sm font-medium leading-6 text-[#7e79a7] dark:text-muted-foreground">
-                              Devam ederek tercihleriniz doğrultusunda otomatik rota oluşturulmasını onaylamış olursunuz.
-                            </p>
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-700">
+                            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span>Balon turları <b>sabah 05:30'da</b> başlar. Bir gece önce hazırlık önerilir. İptal olabilir — ücretsiz iade uygulanır.</span>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="lg"
-                            onClick={prevStep}
-                            disabled={currentStep === 0}
-                            className="h-12 rounded-full border border-[#ece6fb] bg-white px-7 text-sm font-bold text-[#7b68b4] shadow-[0_10px_30px_rgba(95,66,171,0.08)] hover:bg-[#faf7ff] hover:text-[#6d45dd] disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground"
-                          >
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Geri
-                          </Button>
-
-                          <Button
-                            type="button"
-                            size="lg"
-                            onClick={nextStep}
-                            className="h-12 rounded-full bg-gradient-to-r from-[#7f5cf0] to-[#6d45dd] px-9 text-sm font-black uppercase tracking-[0.18em] text-white shadow-[0_18px_36px_rgba(109,69,221,0.28)] hover:opacity-95"
-                          >
-                            Devam Et
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
+                          <div className="grid gap-3">
+                            {balloons.map(b => (
+                              <ServiceCard key={b.id} selected={selectedBalloon === b.id}
+                                onClick={() => toggleBalloon(b.id)}
+                                icon={<Wind className="h-5 w-5 text-sky-500" />}
+                                color="sky"
+                                title={b.name}
+                                meta={`05:30 kalkış · ${b.duration_minutes}dk · ${b.sell_price_adult}€/kişi`}
+                                badge="🎈 Balon"
+                                image={b.cover_image}
+                              />
+                            ))}
+                          </div>
                         </div>
                       )}
+
+                      {/* Günlük Turlar */}
+                      {tours.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Bus className="h-4 w-4 text-orange-500" />
+                              <label className="text-[10px] font-black uppercase tracking-[.2em] text-orange-600">Günlük Turlar</label>
+                            </div>
+                            <span className="text-[10px] text-gray-400 font-bold">
+                              {numDays > 0 ? `${maxTours} güne kadar seçebilirsiniz` : 'Tarih seçin'}
+                            </span>
+                          </div>
+                          <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-2 text-xs text-orange-700">
+                            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span>Her tur <b>tam günlük</b> — sabah 09:00'dan akşam 17:30'a kadar. Aynı güne iki tur konmaz.</span>
+                          </div>
+                          <div className="grid gap-3">
+                            {tours.map(t => {
+                              const tourLabel: Record<string,string> = { red:'🔴 Kırmızı Tur', green:'🟢 Yeşil Tur', blue:'🔵 Mavi Tur' };
+                              const isDisabled = !selectedTours.includes(t.id) && selectedTours.length >= maxTours;
+                              return (
+                                <ServiceCard key={t.id} selected={selectedTours.includes(t.id)}
+                                  onClick={() => !isDisabled && toggleTour(t.id)}
+                                  disabled={isDisabled}
+                                  icon={<Bus className="h-5 w-5 text-orange-500" />}
+                                  color="orange"
+                                  title={t.name}
+                                  meta={`${t.start_time} kalkış · ${t.duration_hours}s · ${t.group_price_adult}€/kişi`}
+                                  badge={tourLabel[t.code] || '⭐ Özel Tur'}
+                                  image={t.cover_image}
+                                  desc={t.short_description}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Aktiviteler */}
+                      {activities.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-purple-500" />
+                            <label className="text-[10px] font-black uppercase tracking-[.2em] text-purple-600">Aktiviteler</label>
+                            <span className="text-[10px] text-gray-400">(İsteğe bağlı)</span>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {activities.map(a => (
+                              <ServiceCard key={a.id} selected={selectedActivities.includes(a.id)}
+                                onClick={() => toggleActivity(a.id)}
+                                icon={<Zap className="h-5 w-5 text-purple-500" />}
+                                color="purple"
+                                title={a.name}
+                                meta={`${a.duration_minutes}dk · ${a.sell_price_adult}€/kişi`}
+                                image={a.cover_image}
+                                compact
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedTours.length === 0 && !selectedBalloon && (
+                        <div className="p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl text-center">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Hiçbir şey seçmeden de devam edebilirsiniz — serbest gezi planı oluşturulur.</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ─── ADIM 3: Konaklama ───────────────────────────────── */}
+              {step === 2 && (
+                <div className="space-y-4">
+                  {ACCOMMODATION_OPTIONS.map(opt => {
+                    const Icon = opt.icon;
+                    const sel = accommodation === opt.id;
+                    return (
+                      <button key={opt.id} onClick={() => setAccommodation(opt.id)}
+                        className={cn(
+                          'w-full flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all',
+                          sel ? 'border-primary bg-primary/5 shadow-md' : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
+                        )}>
+                        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0', sel ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400')}>
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <div className="flex-1">
+                          <p className={cn('font-black text-base', sel ? 'text-primary' : 'text-gray-900 dark:text-white')}>{opt.label}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{opt.desc}</p>
+                        </div>
+                        {sel && <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+
+                  {/* Özet */}
+                  {(selectedTours.length > 0 || selectedBalloon || selectedActivities.length > 0) && (
+                    <div className="mt-6 p-5 bg-gray-50 dark:bg-white/5 rounded-2xl space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Plan özeti</p>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                        <Calendar className="h-4 w-4 text-primary" />
+                        <span>{numDays} gün · {travelers} kişi</span>
+                      </div>
+                      {selectedBalloon && (
+                        <div className="flex items-center gap-2 text-sm text-sky-600 font-bold">
+                          <Wind className="h-4 w-4" />
+                          {balloons.find(b => b.id === selectedBalloon)?.name} — 05:30 kalkış
+                        </div>
+                      )}
+                      {tours.filter(t => selectedTours.includes(t.id)).map(t => (
+                        <div key={t.id} className="flex items-center gap-2 text-sm text-orange-600 font-bold">
+                          <Bus className="h-4 w-4" /> {t.name}
+                        </div>
+                      ))}
+                      {activities.filter(a => selectedActivities.includes(a.id)).map(a => (
+                        <div key={a.id} className="flex items-center gap-2 text-sm text-purple-600 font-bold">
+                          <Zap className="h-4 w-4" /> {a.name}
+                        </div>
+                      ))}
                     </div>
-                  </form>
-                </Form>
+                  )}
+                </div>
+              )}
+
+              {/* Navigasyon */}
+              <div className="pt-8 mt-auto flex items-center justify-between gap-4 border-t border-gray-100 dark:border-white/8">
+                <Button type="button" variant="ghost" size="lg" onClick={prevStep} disabled={step === 0}
+                  className="h-13 px-7 text-sm font-bold rounded-xl hover:bg-gray-50 group disabled:opacity-30">
+                  <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />Geri
+                </Button>
+
+                {step < STEPS.length - 1 ? (
+                  <Button type="button" size="lg" onClick={nextStep}
+                    className="h-13 px-10 text-sm font-black bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 group uppercase tracking-widest">
+                    Devam Et<ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                ) : (
+                  <Button type="button" size="lg" onClick={handleSubmit}
+                    className="h-13 px-12 text-sm font-black bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 uppercase tracking-widest">
+                    Planı Oluştur<Sparkles className="ml-2 h-4 w-4 animate-pulse" />
+                  </Button>
+                )}
               </div>
-            </div>
-          </div>
-        </section>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
-};
+});
 
-export default memo(PlannerPage);
+// ── ServiceCard bileşeni ─────────────────────────────────────────────────────
+function ServiceCard({ selected, onClick, disabled, icon, color, title, meta, badge, image, desc, compact }: {
+  selected: boolean; onClick: () => void; disabled?: boolean;
+  icon: React.ReactNode; color: string; title: string; meta: string;
+  badge?: string; image?: string; desc?: string; compact?: boolean;
+}) {
+  const colorMap: Record<string, string> = {
+    sky:    'border-sky-400 bg-sky-50 dark:bg-sky-950/30',
+    orange: 'border-orange-400 bg-orange-50 dark:bg-orange-950/30',
+    purple: 'border-purple-400 bg-purple-50 dark:bg-purple-950/30',
+  };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={cn(
+        'w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all',
+        selected ? colorMap[color] || 'border-primary bg-primary/5' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-gray-200',
+        disabled && 'opacity-40 cursor-not-allowed'
+      )}>
+      {image && !compact && (
+        <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-gray-100">
+          <img src={image} alt={title} className="w-full h-full object-cover" />
+        </div>
+      )}
+      {!image && (
+        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-gray-100 dark:bg-white/10', selected && `bg-${color}-100`)}>
+          {icon}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn('font-black text-sm', selected ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200')}>{title}</span>
+          {badge && <span className="text-[10px] font-bold text-gray-500 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-full">{badge}</span>}
+        </div>
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold mt-0.5">{meta}</p>
+        {desc && !compact && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{desc}</p>}
+      </div>
+      <div className={cn('w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all',
+        selected ? 'border-primary bg-primary' : 'border-gray-300 dark:border-white/30')}>
+        {selected && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+      </div>
+    </button>
+  );
+}
