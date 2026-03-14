@@ -34,6 +34,43 @@ export interface ItineraryDay {
   day_story?: string;
 }
 
+// ── Gezilecek Yerler bölümü için kayıtlı yer ────────────────────────────────
+export interface SavedPlace {
+  id: string;
+  place_id: string;
+  name: string;
+  formatted_address?: string;
+  photo_reference?: string;
+  rating?: number;
+  lat: number;
+  lng: number;
+  category: string;
+  notes?: string;
+  price_level?: number;
+  url?: string;
+}
+
+// ── Gezi bölümü (Otel, Restoran, Gezilecek, Özel) ───────────────────────────
+export interface TripSection {
+  id: string;
+  title: string;
+  type: 'places' | 'hotels' | 'restaurants' | 'activities' | 'custom';
+  items: SavedPlace[];
+  collapsed?: boolean;
+}
+
+// ── Bütçe kalemi ─────────────────────────────────────────────────────────────
+export type BudgetCategory = 'flight' | 'lodging' | 'rental_car' | 'train' | 'food' | 'activities' | 'other';
+export interface BudgetItem {
+  id: string;
+  category: BudgetCategory;
+  name: string;
+  amount: number;
+  currency: string;
+  date?: string;
+  notes?: string;
+}
+
 export interface Trip {
   id: string;
   user_id: string;
@@ -44,6 +81,15 @@ export interface Trip {
   preferences: any;
   itinerary: { days: ItineraryDay[] };
   created_at: string;
+  /** Serbest metin notlar */
+  trip_notes?: string;
+  /** Gezilecek Yerler bölümleri (Otel, Restoran, vb.) */
+  sections?: TripSection[];
+  /** Bütçe kalemleri */
+  budget_items?: BudgetItem[];
+  /** Hedef bütçe */
+  budget_total?: number;
+  budget_currency?: string;
 }
 
 export interface DiscoverPlace {
