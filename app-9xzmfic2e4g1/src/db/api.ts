@@ -16,6 +16,13 @@ export interface Place {
   notes?: string;
   personal_tip?: string;
   why_visit?: string;
+  /** Acenta servisleri (tur/aktivite/balon) için ek alan */
+  agency_service?: {
+    type: 'tour' | 'activity' | 'balloon';
+    slug: string;
+    price: number;
+    currency: string;
+  };
 }
 
 export interface ItineraryDay {
