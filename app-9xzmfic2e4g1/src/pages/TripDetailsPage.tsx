@@ -226,23 +226,88 @@ export default function TripDetailsPage() {
     applyItinerary({ ...trip.itinerary, days: fn([...trip.itinerary.days]) });
   }, [trip, applyItinerary]);
 
+  // ── Çakışma kontrolü ──────────────────────────────────────────────────────
+  const validateAddToDay = useCallback((day: ItineraryDay, place: Place): string | null => {
+    const agencyType = place.agency_service?.type;
+    const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon');
+    const hasTour    = day.items.some(i => i.agency_service?.type === 'tour');
+
+    if (agencyType === 'balloon' && hasTour)
+      return '🎈 Balon günü tur eklenmez. Balonu ayrı bir güne taşıyın.';
+    if (agencyType === 'balloon' && hasBalloon)
+      return '🎈 Bu güne zaten bir balon turu eklenmiş.';
+    if (agencyType === 'tour' && hasBalloon)
+      return '🗺 Balon günü tur eklenmez. Turu ayrı bir güne ekleyin.';
+    if (agencyType === 'tour' && hasTour)
+      return '🗺 Bu güne zaten bir tur eklenmiş. Kapadokya'da günde en fazla 1 tur yapılabilir.';
+    return null;
+  }, []);
+
   const handleAddPlace = useCallback((dayIndex: number, place: Place) => {
     withDays(days => {
       const day = days[dayIndex];
-      const last = day.items[day.items.length - 1];
-      let startMin = 9 * 60;
-      if (last) {
-        const [h, m] = (last.start_time || '09:00').split(':').map(Number);
-        startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
+
+      // Çakışma kontrolü
+      const conflict = validateAddToDay(day, place);
+      if (conflict) {
+        toast.error(conflict, { duration: 4000 });
+        return days; // değiştirme
       }
+
       const toHHMM = (mins: number) =>
         `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-      const newPlace = { ...place, start_time: toHHMM(startMin), end_time: toHHMM(startMin + (place.estimated_duration_minutes || 60)) };
+
+      // Agency servisler için saati koru — genel yer ekleme mantığı ezmesin
+      const agencyType = place.agency_service?.type;
+      let startTime = place.start_time;
+      let endTime   = place.end_time;
+
+      if (!agencyType) {
+        // Genel Google Places yeri → son öğeden sonraya koy
+        const last = day.items.filter(i => !i.agency_service?.type.match(/balloon/)).at(-1);
+        let startMin = 9 * 60;
+        if (last) {
+          const [h, m] = (last.start_time || '09:00').split(':').map(Number);
+          startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
+        }
+        startTime = toHHMM(startMin);
+        endTime   = toHHMM(startMin + (place.estimated_duration_minutes || 60));
+      } else if (agencyType === 'balloon') {
+        // Balon her zaman 05:30
+        startTime = '05:30';
+        endTime   = toHHMM(5 * 60 + 30 + (place.estimated_duration_minutes || 90));
+      } else if (agencyType === 'tour') {
+        // Tur kendi start_time değerini korur (genellikle 09:00)
+        startTime = place.start_time || '09:00';
+        endTime   = toHHMM(
+          parseInt(startTime.split(':')[0]) * 60 +
+          parseInt(startTime.split(':')[1]) +
+          (place.estimated_duration_minutes || 480)
+        );
+      } else if (agencyType === 'activity') {
+        // Aktivite kendi time_slot'unu korur
+        startTime = place.start_time || '10:00';
+        endTime   = toHHMM(
+          parseInt(startTime.split(':')[0]) * 60 +
+          parseInt(startTime.split(':')[1]) +
+          (place.estimated_duration_minutes || 120)
+        );
+      }
+
+      const newPlace = { ...place, start_time: startTime, end_time: endTime };
       days[dayIndex] = { ...day, items: [...day.items, newPlace] };
       return days;
     });
-    toast.success(`${place.name} rotaya eklendi`);
-  }, [withDays]);
+
+    const agencyType = place.agency_service?.type;
+    if (agencyType === 'balloon') {
+      toast.success(`${place.name} eklendi — ⏰ 05:30 kalkış! Bir önceki gece erken yatmanız önerilir.`, { duration: 5000 });
+    } else if (agencyType === 'tour') {
+      toast.success(`${place.name} rotaya eklendi — kalkış: ${place.start_time || '09:00'}`);
+    } else {
+      toast.success(`${place.name} rotaya eklendi`);
+    }
+  }, [withDays, validateAddToDay]);
 
   const handleDeletePlace = useCallback((dayIndex: number, placeId: string) => {
     withDays(days => {
