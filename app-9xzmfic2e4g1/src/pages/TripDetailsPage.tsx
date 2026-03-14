@@ -1,14 +1,16 @@
 import { TripBookingPanel } from '@/components/trip/TripBookingPanel';
+import { TripSectionsPanel } from '@/components/trip/TripSectionsPanel';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import api, { Trip, Place, ItineraryDay } from '@/db/api';
+import { useParams, useNavigate } from 'react-router-dom';
+import api, { Trip, Place, ItineraryDay, TripSection, SavedPlace, BudgetItem } from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
 import { AddToTripPanel } from '@/components/trip/AddToTripPanel';
 import {
   Loader2, Share2, MapPin, Trash2,
-  Plus, LayoutGrid, RotateCcw, RotateCw,
-  CheckCircle2, Clock, Navigation, Globe, GlobeLock, X
+  Plus, RotateCcw, RotateCw,
+  CheckCircle2, Clock, Navigation, Globe, GlobeLock, X,
+  CalendarDays, MessageSquare, Wallet, List, ChevronLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -46,16 +48,21 @@ function useUndoRedo<T>(initial: T) {
   const undo = useCallback(() => { if (canUndo) setPtr(p => p - 1); }, [canUndo]);
   const redo = useCallback(() => { if (canRedo) setPtr(p => p + 1); }, [canRedo]);
 
-  const jumpTo = useCallback((index: number) => {
-    if (index >= 0 && index < stack.current.length) setPtr(index);
-  }, []);
-
-  return { current, push, undo, redo, canUndo, canRedo, jumpTo, ptr };
+  return { current, push, undo, redo, canUndo, canRedo };
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ── Sol panel sekme tipleri ───────────────────────────────────────────────────
+type LeftTab = 'places' | 'itinerary' | 'budget';
+
+const LEFT_TABS: { id: LeftTab; label: string; icon: any }[] = [
+  { id: 'places',    label: 'Gezilecek',  icon: List },
+  { id: 'itinerary', label: 'Itinerary',  icon: CalendarDays },
+  { id: 'budget',    label: 'Bütçe',      icon: Wallet },
+];
+
+// ════════════════════════════════════════════════════════════════════════════
 // Component
-// ────────────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
 export default function TripDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -69,6 +76,9 @@ export default function TripDetailsPage() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sol panel sekmesi — varsayılan: itinerary
+  const [leftTab, setLeftTab] = useState<LeftTab>('itinerary');
+
   // Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
@@ -79,7 +89,7 @@ export default function TripDetailsPage() {
   // Discover panel
   const [showDiscoverPanel, setShowDiscoverPanel] = useState(false);
 
-  // History operates on the full itinerary object
+  // History
   const history = useUndoRedo<Trip['itinerary'] | null>(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -114,7 +124,14 @@ export default function TripDetailsPage() {
     saveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
       try {
-        await api.updateTrip(t.id, { itinerary: t.itinerary });
+        await api.updateTrip(t.id, {
+          itinerary: t.itinerary,
+          trip_notes: t.trip_notes,
+          sections: t.sections,
+          budget_items: t.budget_items,
+          budget_total: t.budget_total,
+          budget_currency: t.budget_currency,
+        } as any);
         setSaveStatus('saved');
       } catch {
         setSaveStatus('unsaved');
@@ -123,7 +140,7 @@ export default function TripDetailsPage() {
     }, 1500);
   }, []);
 
-  // ── Apply an itinerary snapshot (used by all mutators + undo/redo) ────────
+  // ── Apply itinerary snapshot ──────────────────────────────────────────────
   const applyItinerary = useCallback((itinerary: Trip['itinerary'], pushToHistory = true) => {
     setTrip(prev => {
       if (!prev) return prev;
@@ -135,7 +152,16 @@ export default function TripDetailsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleWrite]);
 
-  // ── Undo / Redo ────────────────────────────────────────────────────────────
+  const updateTrip = useCallback((updater: (t: Trip) => Trip) => {
+    setTrip(prev => {
+      if (!prev) return prev;
+      const next = updater(prev);
+      scheduleWrite(next);
+      return next;
+    });
+  }, [scheduleWrite]);
+
+  // ── Undo / Redo ───────────────────────────────────────────────────────────
   const handleUndo = useCallback(() => {
     if (!history.canUndo) return;
     history.undo();
@@ -150,7 +176,6 @@ export default function TripDetailsPage() {
     if (next) applyItinerary(next, false);
   }, [history, applyItinerary]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -168,18 +193,13 @@ export default function TripDetailsPage() {
   }, [trip, applyItinerary]);
 
   const handleReorder = (dayIndex: number, newItems: Place[]) => {
-    withDays(days => {
-      days[dayIndex] = { ...days[dayIndex], items: newItems };
-      return days;
-    });
+    withDays(days => { days[dayIndex] = { ...days[dayIndex], items: newItems }; return days; });
   };
 
   const handleAddPlace = (dayIndex: number, place: Place) => {
     withDays(days => {
       const day = days[dayIndex];
       const last = day.items[day.items.length - 1];
-
-      // Auto-schedule start_time after last item ends
       let startMin = 9 * 60;
       if (last) {
         const [h, m] = (last.start_time || '09:00').split(':').map(Number);
@@ -187,12 +207,7 @@ export default function TripDetailsPage() {
       }
       const toHHMM = (mins: number) =>
         `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-
-      const newPlace = {
-        ...place,
-        start_time: toHHMM(startMin),
-        end_time: toHHMM(startMin + (place.estimated_duration_minutes || 60)),
-      };
+      const newPlace = { ...place, start_time: toHHMM(startMin), end_time: toHHMM(startMin + (place.estimated_duration_minutes || 60)) };
       days[dayIndex] = { ...day, items: [...day.items, newPlace] };
       return days;
     });
@@ -218,10 +233,7 @@ export default function TripDetailsPage() {
   };
 
   const handleUpdateDayNote = (dayIndex: number, note: string) => {
-    withDays(days => {
-      days[dayIndex] = { ...days[dayIndex], notes: note };
-      return days;
-    });
+    withDays(days => { days[dayIndex] = { ...days[dayIndex], notes: note }; return days; });
   };
 
   const handleAddDay = () => {
@@ -229,16 +241,64 @@ export default function TripDetailsPage() {
     const nextNum = trip.itinerary.days.length + 1;
     withDays(days => [...days, { day: nextNum, items: [] }]);
     toast.success(`Gün ${nextNum} eklendi`);
-    setSelectedDayIndex(trip.itinerary.days.length); // new day
+    setSelectedDayIndex(trip.itinerary.days.length);
   };
 
+  // ── Sections (Gezilecek Yerler) mutators ─────────────────────────────────
+  const handleUpdateNotes = useCallback((notes: string) => {
+    updateTrip(t => ({ ...t, trip_notes: notes }));
+  }, [updateTrip]);
+
+  const handleAddSection = useCallback((section: TripSection) => {
+    updateTrip(t => ({ ...t, sections: [...(t.sections || []), section] }));
+  }, [updateTrip]);
+
+  const handleDeleteSection = useCallback((sectionId: string) => {
+    updateTrip(t => ({ ...t, sections: (t.sections || []).filter(s => s.id !== sectionId) }));
+  }, [updateTrip]);
+
+  const handleRenameSectionTitle = useCallback((sectionId: string, title: string) => {
+    updateTrip(t => ({
+      ...t,
+      sections: (t.sections || []).map(s => s.id === sectionId ? { ...s, title } : s),
+    }));
+  }, [updateTrip]);
+
+  const handleAddSavedPlace = useCallback((sectionId: string, place: SavedPlace) => {
+    updateTrip(t => ({
+      ...t,
+      sections: (t.sections || []).map(s =>
+        s.id === sectionId ? { ...s, items: [...s.items, place] } : s
+      ),
+    }));
+  }, [updateTrip]);
+
+  const handleDeleteSavedPlace = useCallback((sectionId: string, placeId: string) => {
+    updateTrip(t => ({
+      ...t,
+      sections: (t.sections || []).map(s =>
+        s.id === sectionId ? { ...s, items: s.items.filter(i => i.id !== placeId) } : s
+      ),
+    }));
+  }, [updateTrip]);
+
+  // ── Budget mutators ───────────────────────────────────────────────────────
+  const handleAddBudgetItem = useCallback((item: BudgetItem) => {
+    updateTrip(t => ({ ...t, budget_items: [...(t.budget_items || []), item] }));
+  }, [updateTrip]);
+
+  const handleDeleteBudgetItem = useCallback((itemId: string) => {
+    updateTrip(t => ({ ...t, budget_items: (t.budget_items || []).filter(i => i.id !== itemId) }));
+  }, [updateTrip]);
+
+  const handleSetBudgetTotal = useCallback((total: number, currency: string) => {
+    updateTrip(t => ({ ...t, budget_total: total, budget_currency: currency }));
+  }, [updateTrip]);
+
+  // ── Share / Publish / Delete ──────────────────────────────────────────────
   const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success('Link panoya kopyalandı');
-    } catch {
-      toast.error('Kopyalama başarısız');
-    }
+    try { await navigator.clipboard.writeText(window.location.href); toast.success('Link panoya kopyalandı'); }
+    catch { toast.error('Kopyalama başarısız'); }
   };
 
   const handlePublish = async () => {
@@ -247,46 +307,29 @@ export default function TripDetailsPage() {
     try {
       const tips = guideTips.split('\n').map(t => t.trim()).filter(Boolean);
       await api.publishGuide(trip.id, { guide_intro: guideIntro, guide_tips: tips });
-      setIsPublic(true);
-      setShowPublishModal(false);
-      toast.success('Rehber yayınlandı! Toplulukta görünüyor.');
-    } catch {
-      toast.error('Yayınlama başarısız');
-    } finally {
-      setPublishLoading(false);
-    }
+      setIsPublic(true); setShowPublishModal(false);
+      toast.success('Rehber yayınlandı!');
+    } catch { toast.error('Yayınlama başarısız'); }
+    finally { setPublishLoading(false); }
   };
 
   const handleUnpublish = async () => {
     if (!trip) return;
-    try {
-      await api.unpublishGuide(trip.id);
-      setIsPublic(false);
-      toast.success('Rehber yayından kaldırıldı');
-    } catch {
-      toast.error('İşlem başarısız');
-    }
+    try { await api.unpublishGuide(trip.id); setIsPublic(false); toast.success('Rehber yayından kaldırıldı'); }
+    catch { toast.error('İşlem başarısız'); }
   };
 
   const handleDelete = async () => {
     if (!trip) return;
-    try {
-      await api.deleteTrip(trip.id);
-      toast.success('Gezi silindi');
-      navigate('/account');
-    } catch {
-      toast.error('Gezi silinemedi');
-    }
+    try { await api.deleteTrip(trip.id); toast.success('Gezi silindi'); navigate('/account'); }
+    catch { toast.error('Gezi silinemedi'); }
   };
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const getDayDate = useCallback((idx: number) => {
     if (!trip) return '';
-    try {
-      return format(addDays(new Date(trip.start_date), idx), 'd MMM', { locale: tr });
-    } catch {
-      return '';
-    }
+    try { return format(addDays(new Date(trip.start_date), idx), 'd MMM', { locale: tr }); }
+    catch { return ''; }
   }, [trip]);
 
   const dayStats = useMemo(() => {
@@ -295,19 +338,15 @@ export default function TripDetailsPage() {
     if (!day) return null;
     const mins = day.items.reduce((s, p) => s + (p.estimated_duration_minutes || 60), 0);
     const h = Math.floor(mins / 60), m = mins % 60;
-    return {
-      places: day.items.length,
-      duration: h > 0 ? `${h}s${m > 0 ? ` ${m}dk` : ''}` : `${m}dk`,
-    };
+    return { places: day.items.length, duration: h > 0 ? `${h}s${m > 0 ? ` ${m}dk` : ''}` : `${m}dk` };
   }, [trip, selectedDayIndex]);
 
-  // All place IDs across every day (for the discover panel "already added" check)
   const existingPlaceIds = useMemo(() => {
     if (!trip) return [];
     return trip.itinerary.days.flatMap(d => d.items.map(i => i.place_id));
   }, [trip]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-4 bg-background">
@@ -321,61 +360,37 @@ export default function TripDetailsPage() {
   }
 
   if (!trip) return null;
-
   const selectedDay = trip.itinerary.days[selectedDayIndex];
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
 
-      {/* ── Publish Modal ────────────────────────────────────────────────── */}
+      {/* ── Publish Modal ──────────────────────────────────────────────── */}
       {showPublishModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-gray-900 tracking-tight">Rehber Olarak Yayınla</h2>
+                <h2 className="text-xl font-black text-gray-900">Rehber Olarak Yayınla</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Rotanız toplulukla paylaşılacak</p>
               </div>
-              <button onClick={() => setShowPublishModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all">
+              <button onClick={() => setShowPublishModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
                 <X className="h-4 w-4 text-gray-500" />
               </button>
             </div>
-
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">
-                  Kişisel Notunuz
-                </label>
-                <textarea
-                  value={guideIntro}
-                  onChange={e => setGuideIntro(e.target.value)}
-                  placeholder="Kapadokya'ya kaç kez gittiğinizi, gezi deneyiminizi kısaca anlatın..."
-                  rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
-                />
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">Kişisel Notunuz</label>
+                <textarea value={guideIntro} onChange={e => setGuideIntro(e.target.value)} placeholder="Kapadokya deneyiminizi kısaca anlatın..." rows={3} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">
-                  Genel İpuçları <span className="text-gray-400 font-normal">(her satır ayrı ipucu)</span>
-                </label>
-                <textarea
-                  value={guideTips}
-                  onChange={e => setGuideTips(e.target.value)}
-                  placeholder={"Sabah erken çıkın, turist kalabalığından kaçınırsınız\nBalon turu için 3 ay önceden rezervasyon yapın\nNevşehir'den araç kiralamak en pratik seçenek"}
-                  rows={4}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
-                />
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">Genel İpuçları</label>
+                <textarea value={guideTips} onChange={e => setGuideTips(e.target.value)} placeholder={"Sabah erken çıkın\nBalon turu için önceden rezervasyon yapın"} rows={4} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             </div>
-
             <div className="flex gap-3 pt-1">
-              <Button variant="outline" className="flex-1 h-11 rounded-xl font-bold"
-                onClick={() => setShowPublishModal(false)}>
-                Vazgeç
-              </Button>
-              <Button className="flex-1 h-11 rounded-xl font-black bg-primary hover:bg-primary-dark gap-2"
-                onClick={handlePublish} disabled={publishLoading}>
+              <Button variant="outline" className="flex-1 h-11 rounded-xl font-bold" onClick={() => setShowPublishModal(false)}>Vazgeç</Button>
+              <Button className="flex-1 h-11 rounded-xl font-black bg-primary gap-2" onClick={handlePublish} disabled={publishLoading}>
                 {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
                 Yayınla
               </Button>
@@ -384,104 +399,71 @@ export default function TripDetailsPage() {
         </div>
       )}
 
-      {/* ── Sub-header ──────────────────────────────────────────────────── */}
+      {/* ── Top Bar ────────────────────────────────────────────────────── */}
       <div className="h-14 border-b bg-white flex items-center px-4 gap-3 shrink-0 shadow-sm">
-
-        {/* Left */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
-
-          {/* Undo / Redo */}
+          {/* Undo/Redo */}
           <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
-            <button
-              onClick={handleUndo}
-              disabled={!history.canUndo}
-              title="Geri al (Ctrl+Z)"
-              className={cn(
-                "h-7 w-7 rounded-md flex items-center justify-center transition-all",
-                history.canUndo
-                  ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer"
-                  : "text-gray-300 cursor-not-allowed"
-              )}
-            >
+            <button onClick={handleUndo} disabled={!history.canUndo} title="Geri al (Ctrl+Z)"
+              className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all",
+                history.canUndo ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer" : "text-gray-300 cursor-not-allowed"
+              )}>
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={handleRedo}
-              disabled={!history.canRedo}
-              title="İleri al (Ctrl+Shift+Z)"
-              className={cn(
-                "h-7 w-7 rounded-md flex items-center justify-center transition-all",
-                history.canRedo
-                  ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer"
-                  : "text-gray-300 cursor-not-allowed"
-              )}
-            >
+            <button onClick={handleRedo} disabled={!history.canRedo} title="İleri al (Ctrl+Shift+Z)"
+              className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all",
+                history.canRedo ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer" : "text-gray-300 cursor-not-allowed"
+              )}>
               <RotateCw className="h-3.5 w-3.5" />
             </button>
           </div>
 
           <div className="h-4 w-px bg-gray-200" />
+          <h1 className="text-sm font-bold text-gray-900 truncate">{trip.title}</h1>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-sm font-bold text-gray-900 truncate">{trip.title}</h1>
-            <LayoutGrid className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-          </div>
-
-          {/* Save indicator */}
+          {/* Kaydetme durumu */}
           <AnimatePresence mode="wait">
             {saveStatus === 'saving' && (
               <motion.span key="saving" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest"
-              >
+                className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                 <Loader2 className="h-3 w-3 animate-spin" /> Kaydediliyor...
               </motion.span>
             )}
             {saveStatus === 'saved' && (
               <motion.span key="saved" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-green-500"
-              >
+                className="flex items-center gap-1.5 text-[10px] font-bold text-green-500">
                 <CheckCircle2 className="h-3 w-3" /> Kaydedildi
               </motion.span>
             )}
             {saveStatus === 'unsaved' && (
-              <motion.div key="dot" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="w-2 h-2 rounded-full bg-primary"
-              />
+              <motion.div key="dot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-2 h-2 rounded-full bg-primary" />
             )}
           </AnimatePresence>
         </div>
 
-        {/* Right actions */}
+        {/* Sağ aksiyonlar */}
         <div className="flex items-center gap-1.5 shrink-0">
           {!user && (
-            <Button size="sm" onClick={() => navigate('/login')}
-              className="bg-primary hover:bg-primary-dark h-8 px-4 rounded-full text-xs font-bold gap-1.5">
+            <Button size="sm" onClick={() => navigate('/login')} className="bg-primary h-8 px-4 rounded-full text-xs font-bold">
               Kaydetmek için giriş yap
             </Button>
           )}
-
-          {user && (
-            isPublic ? (
-              <Button variant="outline" size="sm"
-                className="h-8 px-3 rounded-xl border-green-200 text-green-700 bg-green-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-bold gap-1.5 transition-all"
-                onClick={handleUnpublish}>
-                <Globe className="h-3.5 w-3.5" />
-                Yayında
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm"
-                className="h-8 px-3 rounded-xl border-primary/20 text-primary bg-primary/10 hover:bg-primary/20 text-xs font-bold gap-1.5"
-                onClick={() => setShowPublishModal(true)}>
-                <GlobeLock className="h-3.5 w-3.5" />
-                Yayınla
-              </Button>
-            )
-          )}
-
+          {user && (isPublic ? (
+            <Button variant="outline" size="sm"
+              className="h-8 px-3 rounded-xl border-green-200 text-green-700 bg-green-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-bold gap-1.5 transition-all"
+              onClick={handleUnpublish}>
+              <Globe className="h-3.5 w-3.5" />Yayında
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm"
+              className="h-8 px-3 rounded-xl border-primary/20 text-primary bg-primary/10 hover:bg-primary/20 text-xs font-bold gap-1.5"
+              onClick={() => setShowPublishModal(true)}>
+              <GlobeLock className="h-3.5 w-3.5" />Yayınla
+            </Button>
+          ))}
           <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-900" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
           </Button>
-
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
@@ -491,122 +473,185 @@ export default function TripDetailsPage() {
             <AlertDialogContent className="rounded-2xl">
               <AlertDialogHeader>
                 <AlertDialogTitle className="font-bold">Geziyi sil?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  <strong>"{trip.title}"</strong> kalıcı olarak silinecek. Bu işlem geri alınamaz.
-                </AlertDialogDescription>
+                <AlertDialogDescription><strong>"{trip.title}"</strong> kalıcı olarak silinecek.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel className="rounded-xl font-bold">Vazgeç</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 rounded-xl font-bold">
-                  Evet, Sil
-                </AlertDialogAction>
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 rounded-xl font-bold">Evet, Sil</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
       </div>
 
-      {/* ── Main ──────────────────────────────────────────────────────────── */}
+      {/* ── Ana Layout ─────────────────────────────────────────────────── */}
       <main className="flex-1 flex overflow-hidden">
 
-        {/* Day sidebar */}
-        <aside className="w-16 md:w-[72px] border-r bg-gray-50/50 flex flex-col shrink-0 overflow-y-auto">
-          <div className="py-4 flex flex-col items-center gap-2">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Günler</span>
-            <div className="flex flex-col gap-2 w-full px-2 mt-1">
-              {trip.itinerary.days.map((day, idx) => (
-                <motion.button
-                  key={day.day}
-                  onClick={() => setSelectedDayIndex(idx)}
-                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+        {/* ── Sol Panel ────────────────────────────────────────────────── */}
+        <aside className="w-full lg:w-[400px] xl:w-[440px] flex flex-col border-r bg-white shrink-0 overflow-hidden">
+
+          {/* Sol panel tab bar */}
+          <div className="flex items-center gap-0 px-4 pt-3 pb-0 border-b bg-white shrink-0">
+            {LEFT_TABS.map(tab => {
+              const Icon = tab.icon;
+              const isActive = leftTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setLeftTab(tab.id)}
                   className={cn(
-                    "flex flex-col items-center justify-center py-3 rounded-xl transition-all",
-                    selectedDayIndex === idx
-                      ? "bg-primary text-white shadow-lg shadow-primary/30"
-                      : "text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm"
+                    'flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-bold border-b-2 transition-all',
+                    isActive
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
                   )}
                 >
-                  <span className="text-[9px] font-black uppercase tracking-tighter">Gün {day.day}</span>
-                  <span className={cn("text-[8px] font-semibold mt-0.5",
-                    selectedDayIndex === idx ? "text-primary/80" : "text-gray-400"
-                  )}>
-                    {getDayDate(idx)}
-                  </span>
-                  <Badge className={cn(
-                    "mt-1.5 text-[8px] px-1.5 py-0 h-4 font-black border-0 rounded-full",
-                    selectedDayIndex === idx ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500"
-                  )}>
-                    {day.items.length}
-                  </Badge>
-                </motion.button>
-              ))}
-
-              <button
-                onClick={handleAddDay}
-                className="flex flex-col items-center justify-center py-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-primary hover:bg-primary/10 hover:border-primary/30 transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="text-[8px] font-black uppercase mt-1">Ekle</span>
-              </button>
-            </div>
+                  <Icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
+
+          {/* ── GEZILECEK / NOTLAR sekmesi ──────────────────────────────── */}
+          {leftTab === 'places' && (
+            <div className="flex-1 overflow-y-auto">
+              <TripSectionsPanel
+                trip={trip}
+                onUpdateNotes={handleUpdateNotes}
+                onAddSection={handleAddSection}
+                onDeleteSection={handleDeleteSection}
+                onRenameSectionTitle={handleRenameSectionTitle}
+                onAddSavedPlace={handleAddSavedPlace}
+                onDeleteSavedPlace={handleDeleteSavedPlace}
+                onAddBudgetItem={handleAddBudgetItem}
+                onDeleteBudgetItem={handleDeleteBudgetItem}
+                onSetBudgetTotal={handleSetBudgetTotal}
+              />
+            </div>
+          )}
+
+          {/* ── BÜTÇE sekmesi (kısayol) ─────────────────────────────────── */}
+          {leftTab === 'budget' && (
+            <div className="flex-1 overflow-y-auto">
+              <TripSectionsPanel
+                trip={{ ...trip, sections: [] }} // Sadece bütçe göster
+                onUpdateNotes={handleUpdateNotes}
+                onAddSection={handleAddSection}
+                onDeleteSection={handleDeleteSection}
+                onRenameSectionTitle={handleRenameSectionTitle}
+                onAddSavedPlace={handleAddSavedPlace}
+                onDeleteSavedPlace={handleDeleteSavedPlace}
+                onAddBudgetItem={handleAddBudgetItem}
+                onDeleteBudgetItem={handleDeleteBudgetItem}
+                onSetBudgetTotal={handleSetBudgetTotal}
+              />
+            </div>
+          )}
+
+          {/* ── ITINERARY sekmesi ───────────────────────────────────────── */}
+          {leftTab === 'itinerary' && (
+            <>
+              {/* Gün seçici + başlık */}
+              <div className="flex items-start gap-0 shrink-0 overflow-hidden">
+                {/* Gün sidebar'ı */}
+                <div className="w-[72px] border-r bg-gray-50/50 flex flex-col shrink-0 overflow-y-auto h-full">
+                  <div className="py-3 flex flex-col items-center gap-2">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Günler</span>
+                    <div className="flex flex-col gap-2 w-full px-2 mt-1">
+                      {trip.itinerary.days.map((day, idx) => (
+                        <motion.button
+                          key={day.day}
+                          onClick={() => setSelectedDayIndex(idx)}
+                          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                          className={cn(
+                            "flex flex-col items-center justify-center py-3 rounded-xl transition-all",
+                            selectedDayIndex === idx
+                              ? "bg-primary text-white shadow-lg shadow-primary/30"
+                              : "text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm"
+                          )}
+                        >
+                          <span className="text-[9px] font-black uppercase tracking-tighter">Gün {day.day}</span>
+                          <span className={cn("text-[8px] font-semibold mt-0.5", selectedDayIndex === idx ? "text-primary/80" : "text-gray-400")}>
+                            {getDayDate(idx)}
+                          </span>
+                          <Badge className={cn("mt-1.5 text-[8px] px-1.5 py-0 h-4 font-black border-0 rounded-full",
+                            selectedDayIndex === idx ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500"
+                          )}>
+                            {day.items.length}
+                          </Badge>
+                        </motion.button>
+                      ))}
+                      <button
+                        onClick={handleAddDay}
+                        className="flex flex-col items-center justify-center py-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-primary hover:bg-primary/10 hover:border-primary/30 transition-all"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="text-[8px] font-black uppercase mt-1">Ekle</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline panel */}
+                <div className="flex-1 overflow-y-auto flex flex-col" style={{ height: 'calc(100vh - 64px - 56px - 41px)' }}>
+                  {/* Günlük başlık */}
+                  <div className="px-4 py-3 border-b sticky top-0 bg-white/95 backdrop-blur-sm z-30">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-black text-gray-900">Gün {selectedDay.day}</h2>
+                          <span className="text-sm font-semibold text-gray-400">{getDayDate(selectedDayIndex)}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
+                            <MapPin className="h-3 w-3 text-primary" />{dayStats?.places || 0} durak
+                          </span>
+                          {dayStats && dayStats.places > 0 && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
+                              <Clock className="h-3 w-3 text-primary" />~{dayStats.duration}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary-dark"
+                        onClick={() => setShowDiscoverPanel(true)}>
+                        <Plus className="h-3 w-3" />Yer Ekle
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto">
+                    <Timeline
+                      itinerary={{ days: [selectedDay] }}
+                      onReorder={(_, items) => handleReorder(selectedDayIndex, items)}
+                      onAddPlace={(_, place) => handleAddPlace(selectedDayIndex, place)}
+                      onDeletePlace={(_, id) => handleDeletePlace(selectedDayIndex, id)}
+                      onUpdatePlaceNote={(_, id, note) => handleUpdatePlaceNote(selectedDayIndex, id, note)}
+                      onUpdateDayNote={(_, note) => handleUpdateDayNote(selectedDayIndex, note)}
+                      onPlaceClick={setActivePlaceId}
+                      activePlaceId={activePlaceId}
+                      onOpenDiscover={() => setShowDiscoverPanel(true)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </aside>
 
-        {/* Timeline panel */}
-        <section className="w-full lg:w-[45%] xl:w-[40%] overflow-y-auto bg-white border-r flex flex-col">
-          {/* Sticky day header */}
-          <div className="px-6 py-4 border-b sticky top-0 bg-white/95 backdrop-blur-sm z-30">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-lg font-black text-gray-900">Gün {selectedDay.day}</h2>
-                  <span className="text-sm font-semibold text-gray-400">{getDayDate(selectedDayIndex)}</span>
-                </div>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
-                    <MapPin className="h-3 w-3 text-primary" />
-                    {dayStats?.places || 0} durak
-                  </span>
-                  {dayStats && dayStats.places > 0 && (
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
-                      <Clock className="h-3 w-3 text-primary" />
-                      ~{dayStats.duration}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary-dark"
-                  onClick={() => setShowDiscoverPanel(true)}>
-                  <Plus className="h-3 w-3" />Yer Ekle
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1">
-            <Timeline
-              itinerary={{ days: [selectedDay] }}
-              onReorder={(_, items) => handleReorder(selectedDayIndex, items)}
-              onAddPlace={(_, place) => handleAddPlace(selectedDayIndex, place)}
-              onDeletePlace={(_, id) => handleDeletePlace(selectedDayIndex, id)}
-              onUpdatePlaceNote={(_, id, note) => handleUpdatePlaceNote(selectedDayIndex, id, note)}
-              onUpdateDayNote={(_, note) => handleUpdateDayNote(selectedDayIndex, note)}
-              onPlaceClick={setActivePlaceId}
-              activePlaceId={activePlaceId}
-              onOpenDiscover={() => setShowDiscoverPanel(true)}
-            />
-          </div>
-        </section>
-
-        {/* Map panel */}
+        {/* ── Harita paneli ─────────────────────────────────────────────── */}
         <section className="hidden lg:block flex-1 relative bg-gray-100">
           <TripMap
             itinerary={{ days: [selectedDay] }}
             activePlaceId={activePlaceId}
             onMarkerClick={(id) => {
               setActivePlaceId(id);
-              document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Harita tıklaması itinerary sekmesine geçsin
+              setLeftTab('itinerary');
+              setTimeout(() => {
+                document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
             }}
             onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
           />
@@ -614,7 +659,7 @@ export default function TripDetailsPage() {
           {/* Stats overlay */}
           <div className="absolute top-4 left-4 z-10 pointer-events-none">
             <div className="bg-white/90 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-white/50">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Özet</p>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Gün {selectedDay.day} Özeti</p>
               <div className="flex items-center gap-4">
                 <div>
                   <p className="text-2xl font-black text-gray-900 leading-none">{selectedDay.items.length}</p>
@@ -630,13 +675,12 @@ export default function TripDetailsPage() {
           </div>
         </section>
 
-        {/* Mobile map sheet */}
+        {/* Mobil harita */}
         <div className="lg:hidden fixed bottom-6 right-6 z-50">
           <Sheet open={isMapSheetOpen} onOpenChange={setIsMapSheetOpen}>
             <SheetTrigger asChild>
-              <Button size="lg" className="h-12 px-6 rounded-full shadow-2xl bg-primary hover:bg-primary-dark font-black text-[10px] uppercase tracking-wider gap-2">
-                <MapPin className="h-4 w-4" />
-                Haritayı Aç
+              <Button size="lg" className="h-12 px-6 rounded-full shadow-2xl bg-primary font-black text-[10px] uppercase tracking-wider gap-2">
+                <MapPin className="h-4 w-4" />Haritayı Aç
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[80vh] p-0 rounded-t-3xl overflow-hidden">
@@ -647,15 +691,8 @@ export default function TripDetailsPage() {
                 <TripMap
                   itinerary={{ days: [selectedDay] }}
                   activePlaceId={activePlaceId}
-                  onMarkerClick={(id) => {
-                    setActivePlaceId(id);
-                    setIsMapSheetOpen(false);
-                    document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }}
-                  onAddPlace={(place) => {
-                    handleAddPlace(selectedDayIndex, place);
-                    setIsMapSheetOpen(false);
-                  }}
+                  onMarkerClick={(id) => { setActivePlaceId(id); setIsMapSheetOpen(false); }}
+                  onAddPlace={(place) => { handleAddPlace(selectedDayIndex, place); setIsMapSheetOpen(false); }}
                 />
               </div>
             </SheetContent>
@@ -663,14 +700,15 @@ export default function TripDetailsPage() {
         </div>
       </main>
 
-      {/* ── Discover Panel (Mindtrip style) ──────────────────────────── */}
+      {/* Discover Panel */}
       <AddToTripPanel
         isOpen={showDiscoverPanel}
         onClose={() => setShowDiscoverPanel(false)}
         onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
         existingPlaceIds={existingPlaceIds}
       />
-      {/* ── Satın Alma Paneli ──────────────────────────── */}
+
+      {/* Teklif Paneli */}
       {trip && (
         <TripBookingPanel
           tripTitle={trip.title}
