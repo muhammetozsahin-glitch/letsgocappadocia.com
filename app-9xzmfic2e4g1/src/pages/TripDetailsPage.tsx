@@ -2,6 +2,7 @@
 // TripDetailsPage — Wanderlog tarzı tek sayfa planlayıcı
 // DOSYA: src/pages/TripDetailsPage.tsx
 // ════════════════════════════════════════════════════════════════════════════
+import { TripBookingPanel } from '@/components/trip/TripBookingPanel';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, {
@@ -12,6 +13,7 @@ import api, {
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
 import { AddToTripPanel } from '@/components/trip/AddToTripPanel';
+import { DiscoverSection } from '@/components/trip/DiscoverSection';
 import {
   Loader2, Share2, MapPin, Trash2, Plus,
   RotateCcw, RotateCw, CheckCircle2, Clock,
@@ -20,7 +22,7 @@ import {
   MessageSquare, Wallet, Hotel, UtensilsCrossed,
   Compass, Star, ShoppingBag, Plane, Car, Train,
   PiggyBank, CalendarDays, Users, Wind, Bus, Zap,
-  ExternalLink, Edit3, Euro,
+  ExternalLink, Edit3, Euro, Sparkles, BookOpen,
 } from 'lucide-react';
 import { toursApi, balloonsApi } from '@/db/agency-api';
 import type { Tour, BalloonFlight } from '@/types/agency';
@@ -108,6 +110,7 @@ export default function TripDetailsPage() {
   const [isPublic, setIsPublic] = useState(false);
 
   // Sol panel accordion state
+  const [discoverOpen, setDiscoverOpen] = useState(true);
   const [notesOpen, setNotesOpen] = useState(true);
   const [placesOpen, setPlacesOpen] = useState(true);
   const [itineraryOpen, setItineraryOpen] = useState(true);
@@ -322,6 +325,24 @@ export default function TripDetailsPage() {
       return days;
     });
     toast.success(`${balloon.name} Gün ${dayIndex + 1}'e atandı — ⏰ 05:30 kalkış!`);
+  }, [withDays]);
+
+  // ── Turu kaldır ─────────────────────────────────────────────────────────────
+  const handleRemoveTour = useCallback((dayIndex: number) => {
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_tour: undefined };
+      return days;
+    });
+    toast.success('Tur günden kaldırıldı');
+  }, [withDays]);
+
+  // ── Balonu kaldır ───────────────────────────────────────────────────────────
+  const handleRemoveBalloon = useCallback((dayIndex: number) => {
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_balloon: undefined };
+      return days;
+    });
+    toast.success('Balon turu günden kaldırıldı');
   }, [withDays]);
 
   // ── Tur/Balon ata modal state ────────────────────────────────────────────────
@@ -739,6 +760,32 @@ export default function TripDetailsPage() {
             </div>
           </div>
 
+          {/* ─── KEŞFET ─────────────────────────────────────────────────── */}
+          <SectionAccordion
+            title="Keşfet"
+            icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}
+            isOpen={discoverOpen}
+            onToggle={() => setDiscoverOpen(v => !v)}
+            badge={
+              <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                Yerler &amp; Rehberler
+              </span>
+            }
+          >
+            <DiscoverSection
+              existingPlaceIds={trip.itinerary.days.flatMap(d => d.items.map(i => i.place_id))}
+              onAddPlace={(place) => handleAddPlace(activeDayIndex, place)}
+              currentTripId={trip.id}
+              onGuideCloned={(newId) => {
+                toast.success('Plan kopyalandı', {
+                  description: 'Yeni gezinize gitmek ister misiniz?',
+                  action: { label: 'Git', onClick: () => navigate(\`/trip/\${newId}\`) },
+                  duration: 8000,
+                });
+              }}
+            />
+          </SectionAccordion>
+
           {/* ─── NOTLAR ─────────────────────────────────────────────────── */}
           <SectionAccordion
             title="Notlar"
@@ -875,8 +922,8 @@ export default function TripDetailsPage() {
               const isExpanded = expandedDays.has(idx);
               const date = getDayDate(idx);
               const agencyCount = day.items.filter(i => i.agency_service).length;
-              const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon') || !!day.assigned_balloon;
-              const tourItem = day.assigned_tour ? null : day.items.find(i => i.agency_service?.type === 'tour');
+              const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon');
+              const tourItem = day.items.find(i => i.agency_service?.type === 'tour');
 
               return (
                 <div key={day.day} className="border-b border-gray-50 last:border-0">
@@ -999,6 +1046,8 @@ export default function TripDetailsPage() {
                           onPlaceClick={(placeId) => { setActivePlaceId(placeId); setActiveDayIndex(idx); }}
                           activePlaceId={activePlaceId}
                           onOpenDiscover={() => { setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
+                          onRemoveTour={() => handleRemoveTour(idx)}
+                          onRemoveBalloon={() => handleRemoveBalloon(idx)}
                         />
                       </motion.div>
                     )}
@@ -1244,6 +1293,14 @@ export default function TripDetailsPage() {
         existingPlaceIds={existingPlaceIds}
       />
 
+      {/* Teklif Paneli */}
+      {trip && (
+        <TripBookingPanel
+          tripTitle={trip.title}
+          tripDays={trip.itinerary.days.length}
+          tripPlaces={totalPlaces}
+        />
+      )}
     </div>
   );
 }
