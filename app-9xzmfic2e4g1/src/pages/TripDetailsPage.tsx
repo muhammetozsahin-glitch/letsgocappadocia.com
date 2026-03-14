@@ -894,8 +894,8 @@ export default function TripDetailsPage() {
               const isExpanded = expandedDays.has(idx);
               const date = getDayDate(idx);
               const agencyCount = day.items.filter(i => i.agency_service).length;
-              const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon');
-              const tourItem = day.items.find(i => i.agency_service?.type === 'tour');
+              const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon') || !!day.assigned_balloon;
+              const tourItem = day.assigned_tour ? null : day.items.find(i => i.agency_service?.type === 'tour');
 
               return (
                 <div key={day.day} className="border-b border-gray-50 last:border-0">
