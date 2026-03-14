@@ -1,21 +1,33 @@
+// ════════════════════════════════════════════════════════════════════════════
+// TripDetailsPage — Wanderlog tarzı tek sayfa planlayıcı
+// DOSYA: src/pages/TripDetailsPage.tsx
+// ════════════════════════════════════════════════════════════════════════════
 import { TripBookingPanel } from '@/components/trip/TripBookingPanel';
-import { TripSectionsPanel } from '@/components/trip/TripSectionsPanel';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import api, { Trip, Place, ItineraryDay, TripSection, SavedPlace, BudgetItem } from '@/db/api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import api, {
+  Trip, Place, ItineraryDay,
+  TripSection, SavedPlace, BudgetItem, BudgetCategory,
+} from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
 import { AddToTripPanel } from '@/components/trip/AddToTripPanel';
 import {
-  Loader2, Share2, MapPin, Trash2,
-  Plus, RotateCcw, RotateCw,
-  CheckCircle2, Clock, Navigation, Globe, GlobeLock, X,
-  CalendarDays, MessageSquare, Wallet, List, ChevronLeft,
+  Loader2, Share2, MapPin, Trash2, Plus,
+  RotateCcw, RotateCw, CheckCircle2, Clock,
+  Navigation, Globe, GlobeLock, X,
+  ChevronDown, ChevronRight,
+  MessageSquare, Wallet, Hotel, UtensilsCrossed,
+  Compass, Star, ShoppingBag, Plane, Car, Train,
+  PiggyBank, CalendarDays, Users, Wind, Bus, Zap,
+  ExternalLink, Edit3, Euro,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, addDays } from 'date-fns';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { format, addDays, differenceInDays } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -24,44 +36,48 @@ import {
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
-// ────────────────────────────────────────────────────────────────────────────
-// Undo / Redo hook
-// ────────────────────────────────────────────────────────────────────────────
+// ── Bütçe kategorileri ───────────────────────────────────────────────────────
+const BUDGET_CATS: { id: BudgetCategory; label: string; icon: any; color: string }[] = [
+  { id: 'flight',     label: 'Uçuş',      icon: Plane,           color: 'bg-sky-100 text-sky-700' },
+  { id: 'lodging',    label: 'Konaklama', icon: Hotel,           color: 'bg-purple-100 text-purple-700' },
+  { id: 'rental_car', label: 'Araç',      icon: Car,             color: 'bg-emerald-100 text-emerald-700' },
+  { id: 'train',      label: 'Ulaşım',    icon: Train,           color: 'bg-blue-100 text-blue-700' },
+  { id: 'food',       label: 'Yiyecek',   icon: UtensilsCrossed, color: 'bg-orange-100 text-orange-700' },
+  { id: 'activities', label: 'Aktivite',  icon: Star,            color: 'bg-amber-100 text-amber-700' },
+  { id: 'other',      label: 'Diğer',     icon: ShoppingBag,     color: 'bg-gray-100 text-gray-600' },
+];
+
+const SECTION_TYPES = [
+  { id: 'places' as const,      label: 'Gezilecek',   icon: Compass,         color: 'text-blue-500' },
+  { id: 'hotels' as const,      label: 'Konaklama',   icon: Hotel,           color: 'text-purple-500' },
+  { id: 'restaurants' as const, label: 'Restoranlar', icon: UtensilsCrossed, color: 'text-orange-500' },
+  { id: 'activities' as const,  label: 'Aktiviteler', icon: Star,            color: 'text-amber-500' },
+  { id: 'custom' as const,      label: 'Özel',        icon: ShoppingBag,     color: 'text-gray-500' },
+];
+
+// ── Undo/Redo ────────────────────────────────────────────────────────────────
 function useUndoRedo<T>(initial: T) {
   const stack = useRef<T[]>([initial]);
   const [ptr, setPtr] = useState(0);
-
   const current = stack.current[ptr];
   const canUndo = ptr > 0;
   const canRedo = ptr < stack.current.length - 1;
-
   const push = useCallback((next: T) => {
     stack.current = stack.current.slice(0, ptr + 1);
     stack.current.push(next);
     setPtr(p => p + 1);
   }, [ptr]);
-
   const undo = useCallback(() => { if (canUndo) setPtr(p => p - 1); }, [canUndo]);
   const redo = useCallback(() => { if (canRedo) setPtr(p => p + 1); }, [canRedo]);
-
   return { current, push, undo, redo, canUndo, canRedo };
 }
 
-// ── Sol panel sekme tipleri ───────────────────────────────────────────────────
-type LeftTab = 'places' | 'itinerary' | 'budget';
-
-const LEFT_TABS: { id: LeftTab; label: string; icon: any }[] = [
-  { id: 'places',    label: 'Gezilecek',  icon: List },
-  { id: 'itinerary', label: 'Itinerary',  icon: CalendarDays },
-  { id: 'budget',    label: 'Bütçe',      icon: Wallet },
-];
-
 // ════════════════════════════════════════════════════════════════════════════
-// Component
+// Main Page
 // ════════════════════════════════════════════════════════════════════════════
 export default function TripDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -72,13 +88,16 @@ export default function TripDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [isMapSheetOpen, setIsMapSheetOpen] = useState(false);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sol panel sekmesi — varsayılan: itinerary
-  const [leftTab, setLeftTab] = useState<LeftTab>('itinerary');
-
+  // Hangi günler açık
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([0]));
+  // Aktif gün (harita için)
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  // Discover panel
+  const [showDiscoverPanel, setShowDiscoverPanel] = useState(false);
+  const [discoverDayIndex, setDiscoverDayIndex] = useState(0);
   // Publish modal
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
@@ -86,13 +105,31 @@ export default function TripDetailsPage() {
   const [guideTips, setGuideTips] = useState('');
   const [isPublic, setIsPublic] = useState(false);
 
-  // Discover panel
-  const [showDiscoverPanel, setShowDiscoverPanel] = useState(false);
+  // Sol panel accordion state
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [placesOpen, setPlacesOpen] = useState(true);
+  const [itineraryOpen, setItineraryOpen] = useState(true);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+
+  // Notes editing
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+
+  // Budget form
+  const [showBudgetForm, setShowBudgetForm] = useState(false);
+  const [budgetForm, setBudgetForm] = useState<Partial<BudgetItem>>({ category: 'other', currency: 'EUR', amount: 0, name: '' });
+  const [budgetTotalDraft, setBudgetTotalDraft] = useState('');
+
+  // Sections form
+  const [showAddSection, setShowAddSection] = useState(false);
+  const [newSectionType, setNewSectionType] = useState<TripSection['type']>('places');
+  const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [quickAddValues, setQuickAddValues] = useState<Record<string, string>>({});
 
   // History
   const history = useUndoRedo<Trip['itinerary'] | null>(null);
 
-  // ── Load ──────────────────────────────────────────────────────────────────
+  // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -104,20 +141,21 @@ export default function TripDetailsPage() {
           setIsPublic(!!(data as any).is_public);
           setGuideIntro((data as any).guide_intro || '');
           setGuideTips(((data as any).guide_tips || []).join('\n'));
+          setNoteDraft(data.trip_notes || '');
+          setBudgetTotalDraft(String(data.budget_total || ''));
+          // İlk günü aç
+          setExpandedDays(new Set([0]));
         } else {
           toast.error('Gezi bulunamadı');
           navigate('/explore');
         }
-      } catch {
-        toast.error('Gezi yüklenemedi');
-      } finally {
-        setLoading(false);
-      }
+      } catch { toast.error('Gezi yüklenemedi'); }
+      finally { setLoading(false); }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ── Persist (debounced) ───────────────────────────────────────────────────
+  // ── Persist ───────────────────────────────────────────────────────────────
   const scheduleWrite = useCallback((t: Trip) => {
     setSaveStatus('unsaved');
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -133,14 +171,10 @@ export default function TripDetailsPage() {
           budget_currency: t.budget_currency,
         } as any);
         setSaveStatus('saved');
-      } catch {
-        setSaveStatus('unsaved');
-        toast.error('Değişiklikler kaydedilemedi');
-      }
+      } catch { setSaveStatus('unsaved'); toast.error('Değişiklikler kaydedilemedi'); }
     }, 1500);
   }, []);
 
-  // ── Apply itinerary snapshot ──────────────────────────────────────────────
   const applyItinerary = useCallback((itinerary: Trip['itinerary'], pushToHistory = true) => {
     setTrip(prev => {
       if (!prev) return prev;
@@ -161,7 +195,7 @@ export default function TripDetailsPage() {
     });
   }, [scheduleWrite]);
 
-  // ── Undo / Redo ───────────────────────────────────────────────────────────
+  // ── Undo/Redo ─────────────────────────────────────────────────────────────
   const handleUndo = useCallback(() => {
     if (!history.canUndo) return;
     history.undo();
@@ -186,17 +220,13 @@ export default function TripDetailsPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo, handleRedo]);
 
-  // ── Itinerary mutators ────────────────────────────────────────────────────
+  // ── Itinerary mutators ─────────────────────────────────────────────────────
   const withDays = useCallback((fn: (days: ItineraryDay[]) => ItineraryDay[]) => {
     if (!trip) return;
     applyItinerary({ ...trip.itinerary, days: fn([...trip.itinerary.days]) });
   }, [trip, applyItinerary]);
 
-  const handleReorder = (dayIndex: number, newItems: Place[]) => {
-    withDays(days => { days[dayIndex] = { ...days[dayIndex], items: newItems }; return days; });
-  };
-
-  const handleAddPlace = (dayIndex: number, place: Place) => {
+  const handleAddPlace = useCallback((dayIndex: number, place: Place) => {
     withDays(days => {
       const day = days[dayIndex];
       const last = day.items[day.items.length - 1];
@@ -212,17 +242,17 @@ export default function TripDetailsPage() {
       return days;
     });
     toast.success(`${place.name} rotaya eklendi`);
-  };
+  }, [withDays]);
 
-  const handleDeletePlace = (dayIndex: number, placeId: string) => {
+  const handleDeletePlace = useCallback((dayIndex: number, placeId: string) => {
     withDays(days => {
       days[dayIndex] = { ...days[dayIndex], items: days[dayIndex].items.filter(i => i.place_id !== placeId) };
       return days;
     });
     toast.success('Durak kaldırıldı');
-  };
+  }, [withDays]);
 
-  const handleUpdatePlaceNote = (dayIndex: number, placeId: string, note: string) => {
+  const handleUpdatePlaceNote = useCallback((dayIndex: number, placeId: string, note: string) => {
     withDays(days => {
       const items = [...days[dayIndex].items];
       const idx = items.findIndex(i => i.place_id === placeId);
@@ -230,74 +260,105 @@ export default function TripDetailsPage() {
       days[dayIndex] = { ...days[dayIndex], items };
       return days;
     });
-  };
+  }, [withDays]);
 
-  const handleUpdateDayNote = (dayIndex: number, note: string) => {
+  const handleUpdateDayNote = useCallback((dayIndex: number, note: string) => {
     withDays(days => { days[dayIndex] = { ...days[dayIndex], notes: note }; return days; });
-  };
+  }, [withDays]);
 
-  const handleAddDay = () => {
+  const handleReorder = useCallback((dayIndex: number, newItems: Place[]) => {
+    withDays(days => { days[dayIndex] = { ...days[dayIndex], items: newItems }; return days; });
+  }, [withDays]);
+
+  const handleAddDay = useCallback(() => {
     if (!trip) return;
     const nextNum = trip.itinerary.days.length + 1;
     withDays(days => [...days, { day: nextNum, items: [] }]);
     toast.success(`Gün ${nextNum} eklendi`);
-    setSelectedDayIndex(trip.itinerary.days.length);
+    const newIdx = trip.itinerary.days.length;
+    setExpandedDays(prev => new Set([...prev, newIdx]));
+    setActiveDayIndex(newIdx);
+  }, [trip, withDays]);
+
+  // ── Notes ────────────────────────────────────────────────────────────────
+  const handleSaveNotes = () => {
+    updateTrip(t => ({ ...t, trip_notes: noteDraft }));
+    setEditingNotes(false);
+    toast.success('Not kaydedildi');
   };
 
-  // ── Sections (Gezilecek Yerler) mutators ─────────────────────────────────
-  const handleUpdateNotes = useCallback((notes: string) => {
-    updateTrip(t => ({ ...t, trip_notes: notes }));
-  }, [updateTrip]);
-
-  const handleAddSection = useCallback((section: TripSection) => {
-    updateTrip(t => ({ ...t, sections: [...(t.sections || []), section] }));
-  }, [updateTrip]);
-
-  const handleDeleteSection = useCallback((sectionId: string) => {
-    updateTrip(t => ({ ...t, sections: (t.sections || []).filter(s => s.id !== sectionId) }));
-  }, [updateTrip]);
-
-  const handleRenameSectionTitle = useCallback((sectionId: string, title: string) => {
+  // ── Sections ──────────────────────────────────────────────────────────────
+  const handleAddSection = () => {
+    const typeMeta = SECTION_TYPES.find(t => t.id === newSectionType);
+    const sectionId = `section_${Date.now()}`;
     updateTrip(t => ({
       ...t,
-      sections: (t.sections || []).map(s => s.id === sectionId ? { ...s, title } : s),
+      sections: [...(t.sections || []), {
+        id: sectionId,
+        title: newSectionTitle.trim() || typeMeta?.label || 'Yeni Bölüm',
+        type: newSectionType,
+        items: [],
+      }],
     }));
-  }, [updateTrip]);
+    setShowAddSection(false);
+    setNewSectionTitle('');
+    toast.success('Bölüm eklendi');
+  };
 
-  const handleAddSavedPlace = useCallback((sectionId: string, place: SavedPlace) => {
+  const handleDeleteSection = (sectionId: string) => {
+    updateTrip(t => ({ ...t, sections: (t.sections || []).filter(s => s.id !== sectionId) }));
+  };
+
+  const handleQuickAddPlace = (sectionId: string) => {
+    const name = (quickAddValues[sectionId] || '').trim();
+    if (!name) return;
     updateTrip(t => ({
       ...t,
       sections: (t.sections || []).map(s =>
-        s.id === sectionId ? { ...s, items: [...s.items, place] } : s
+        s.id === sectionId ? {
+          ...s, items: [...s.items, {
+            id: `saved_${Date.now()}`,
+            place_id: `manual_${Date.now()}`,
+            name, lat: 38.6431, lng: 34.8347, category: 'Yer',
+          }]
+        } : s
       ),
     }));
-  }, [updateTrip]);
+    setQuickAddValues(prev => ({ ...prev, [sectionId]: '' }));
+  };
 
-  const handleDeleteSavedPlace = useCallback((sectionId: string, placeId: string) => {
+  const handleDeleteSavedPlace = (sectionId: string, placeId: string) => {
     updateTrip(t => ({
       ...t,
       sections: (t.sections || []).map(s =>
         s.id === sectionId ? { ...s, items: s.items.filter(i => i.id !== placeId) } : s
       ),
     }));
-  }, [updateTrip]);
+  };
 
-  // ── Budget mutators ───────────────────────────────────────────────────────
-  const handleAddBudgetItem = useCallback((item: BudgetItem) => {
-    updateTrip(t => ({ ...t, budget_items: [...(t.budget_items || []), item] }));
-  }, [updateTrip]);
+  // ── Budget ─────────────────────────────────────────────────────────────────
+  const handleAddBudgetItem = () => {
+    if (!budgetForm.name?.trim() || !budgetForm.amount) return;
+    updateTrip(t => ({
+      ...t, budget_items: [...(t.budget_items || []), {
+        id: `budget_${Date.now()}`,
+        category: budgetForm.category || 'other',
+        name: budgetForm.name!,
+        amount: Number(budgetForm.amount),
+        currency: budgetForm.currency || 'EUR',
+      }],
+    }));
+    setBudgetForm({ category: 'other', currency: 'EUR', amount: 0, name: '' });
+    setShowBudgetForm(false);
+  };
 
-  const handleDeleteBudgetItem = useCallback((itemId: string) => {
+  const handleDeleteBudgetItem = (itemId: string) => {
     updateTrip(t => ({ ...t, budget_items: (t.budget_items || []).filter(i => i.id !== itemId) }));
-  }, [updateTrip]);
+  };
 
-  const handleSetBudgetTotal = useCallback((total: number, currency: string) => {
-    updateTrip(t => ({ ...t, budget_total: total, budget_currency: currency }));
-  }, [updateTrip]);
-
-  // ── Share / Publish / Delete ──────────────────────────────────────────────
+  // ── Share/Publish/Delete ──────────────────────────────────────────────────
   const handleShare = async () => {
-    try { await navigator.clipboard.writeText(window.location.href); toast.success('Link panoya kopyalandı'); }
+    try { await navigator.clipboard.writeText(window.location.href); toast.success('Link kopyalandı'); }
     catch { toast.error('Kopyalama başarısız'); }
   };
 
@@ -315,7 +376,7 @@ export default function TripDetailsPage() {
 
   const handleUnpublish = async () => {
     if (!trip) return;
-    try { await api.unpublishGuide(trip.id); setIsPublic(false); toast.success('Rehber yayından kaldırıldı'); }
+    try { await api.unpublishGuide(trip.id); setIsPublic(false); toast.success('Yayından kaldırıldı'); }
     catch { toast.error('İşlem başarısız'); }
   };
 
@@ -328,28 +389,44 @@ export default function TripDetailsPage() {
   // ── Computed ──────────────────────────────────────────────────────────────
   const getDayDate = useCallback((idx: number) => {
     if (!trip) return '';
-    try { return format(addDays(new Date(trip.start_date), idx), 'd MMM', { locale: tr }); }
+    try { return format(addDays(new Date(trip.start_date), idx), 'd MMM EEE', { locale: tr }); }
     catch { return ''; }
   }, [trip]);
 
-  const dayStats = useMemo(() => {
-    if (!trip) return null;
-    const day = trip.itinerary.days[selectedDayIndex];
-    if (!day) return null;
-    const mins = day.items.reduce((s, p) => s + (p.estimated_duration_minutes || 60), 0);
-    const h = Math.floor(mins / 60), m = mins % 60;
-    return { places: day.items.length, duration: h > 0 ? `${h}s${m > 0 ? ` ${m}dk` : ''}` : `${m}dk` };
-  }, [trip, selectedDayIndex]);
-
-  const existingPlaceIds = useMemo(() => {
-    if (!trip) return [];
-    return trip.itinerary.days.flatMap(d => d.items.map(i => i.place_id));
+  const tripDays = useMemo(() => {
+    if (!trip) return 0;
+    try { return differenceInDays(new Date(trip.end_date), new Date(trip.start_date)) + 1; }
+    catch { return trip.itinerary.days.length; }
   }, [trip]);
+
+  const budgetStats = useMemo(() => {
+    const items = trip?.budget_items || [];
+    const total = items.reduce((s, i) => s + (i.amount || 0), 0);
+    const byCategory: Record<string, number> = {};
+    items.forEach(i => { byCategory[i.category] = (byCategory[i.category] || 0) + i.amount; });
+    const sym = (trip?.budget_currency || 'EUR') === 'EUR' ? '€' : (trip?.budget_currency || 'EUR') === 'USD' ? '$' : '₺';
+    return { total, byCategory, sym };
+  }, [trip]);
+
+  const totalPlaces = useMemo(() =>
+    trip?.itinerary.days.reduce((s, d) => s + d.items.length, 0) || 0,
+    [trip]
+  );
+
+  const existingPlaceIds = useMemo(() =>
+    trip?.itinerary.days.flatMap(d => d.items.map(i => i.place_id)) || [],
+    [trip]
+  );
+
+  const activeDay = useMemo(() =>
+    trip?.itinerary.days[activeDayIndex] || trip?.itinerary.days[0],
+    [trip, activeDayIndex]
+  );
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-4 bg-background">
+      <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center gap-4">
         <div className="relative w-16 h-16">
           <div className="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin" />
           <Navigation className="absolute inset-0 m-auto h-6 w-6 text-primary" />
@@ -358,9 +435,7 @@ export default function TripDetailsPage() {
       </div>
     );
   }
-
   if (!trip) return null;
-  const selectedDay = trip.itinerary.days[selectedDayIndex];
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-background">
@@ -370,25 +445,16 @@ export default function TripDetailsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-gray-900">Rehber Olarak Yayınla</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Rotanız toplulukla paylaşılacak</p>
-              </div>
+              <div><h2 className="text-xl font-black text-gray-900">Rehber Olarak Yayınla</h2></div>
               <button onClick={() => setShowPublishModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
                 <X className="h-4 w-4 text-gray-500" />
               </button>
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">Kişisel Notunuz</label>
-                <textarea value={guideIntro} onChange={e => setGuideIntro(e.target.value)} placeholder="Kapadokya deneyiminizi kısaca anlatın..." rows={3} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              </div>
-              <div>
-                <label className="text-xs font-black text-gray-700 uppercase tracking-wider block mb-1.5">Genel İpuçları</label>
-                <textarea value={guideTips} onChange={e => setGuideTips(e.target.value)} placeholder={"Sabah erken çıkın\nBalon turu için önceden rezervasyon yapın"} rows={4} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              </div>
+            <div className="space-y-3">
+              <textarea value={guideIntro} onChange={e => setGuideIntro(e.target.value)} placeholder="Kapadokya deneyiminizi anlatın..." rows={3} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <textarea value={guideTips} onChange={e => setGuideTips(e.target.value)} placeholder={"Sabah erken çıkın\nBalon için önceden rezervasyon yapın"} rows={3} className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-3">
               <Button variant="outline" className="flex-1 h-11 rounded-xl font-bold" onClick={() => setShowPublishModal(false)}>Vazgeç</Button>
               <Button className="flex-1 h-11 rounded-xl font-black bg-primary gap-2" onClick={handlePublish} disabled={publishLoading}>
                 {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
@@ -401,67 +467,57 @@ export default function TripDetailsPage() {
 
       {/* ── Top Bar ────────────────────────────────────────────────────── */}
       <div className="h-14 border-b bg-white flex items-center px-4 gap-3 shrink-0 shadow-sm">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          {/* Undo/Redo */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
-            <button onClick={handleUndo} disabled={!history.canUndo} title="Geri al (Ctrl+Z)"
-              className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all",
-                history.canUndo ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer" : "text-gray-300 cursor-not-allowed"
-              )}>
+            <button onClick={handleUndo} disabled={!history.canUndo}
+              className={cn('h-7 w-7 rounded-md flex items-center justify-center transition-all',
+                history.canUndo ? 'text-gray-700 hover:bg-white hover:shadow-sm' : 'text-gray-300 cursor-not-allowed')}>
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
-            <button onClick={handleRedo} disabled={!history.canRedo} title="İleri al (Ctrl+Shift+Z)"
-              className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all",
-                history.canRedo ? "text-gray-700 hover:bg-white hover:shadow-sm cursor-pointer" : "text-gray-300 cursor-not-allowed"
-              )}>
+            <button onClick={handleRedo} disabled={!history.canRedo}
+              className={cn('h-7 w-7 rounded-md flex items-center justify-center transition-all',
+                history.canRedo ? 'text-gray-700 hover:bg-white hover:shadow-sm' : 'text-gray-300 cursor-not-allowed')}>
               <RotateCw className="h-3.5 w-3.5" />
             </button>
           </div>
-
           <div className="h-4 w-px bg-gray-200" />
           <h1 className="text-sm font-bold text-gray-900 truncate">{trip.title}</h1>
-
-          {/* Kaydetme durumu */}
+          <span className="text-xs text-gray-400 shrink-0 hidden sm:block">
+            {tripDays} gün · {totalPlaces} durak
+          </span>
           <AnimatePresence mode="wait">
             {saveStatus === 'saving' && (
               <motion.span key="saving" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                <Loader2 className="h-3 w-3 animate-spin" /> Kaydediliyor...
+                className="flex items-center gap-1 text-[10px] font-bold text-gray-400">
+                <Loader2 className="h-3 w-3 animate-spin" />Kaydediliyor
               </motion.span>
             )}
             {saveStatus === 'saved' && (
-              <motion.span key="saved" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-green-500">
-                <CheckCircle2 className="h-3 w-3" /> Kaydedildi
+              <motion.span key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="flex items-center gap-1 text-[10px] font-bold text-green-500">
+                <CheckCircle2 className="h-3 w-3" />Kaydedildi
               </motion.span>
-            )}
-            {saveStatus === 'unsaved' && (
-              <motion.div key="dot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-2 h-2 rounded-full bg-primary" />
             )}
           </AnimatePresence>
         </div>
-
-        {/* Sağ aksiyonlar */}
         <div className="flex items-center gap-1.5 shrink-0">
           {!user && (
-            <Button size="sm" onClick={() => navigate('/login')} className="bg-primary h-8 px-4 rounded-full text-xs font-bold">
-              Kaydetmek için giriş yap
+            <Button size="sm" onClick={() => navigate('/login')} className="bg-primary h-8 px-4 rounded-full text-xs font-bold gap-1.5">
+              Giriş yap
             </Button>
           )}
           {user && (isPublic ? (
-            <Button variant="outline" size="sm"
-              className="h-8 px-3 rounded-xl border-green-200 text-green-700 bg-green-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-bold gap-1.5 transition-all"
-              onClick={handleUnpublish}>
+            <Button variant="outline" size="sm" onClick={handleUnpublish}
+              className="h-8 px-3 rounded-xl border-green-200 text-green-700 bg-green-50 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-bold gap-1.5 transition-all">
               <Globe className="h-3.5 w-3.5" />Yayında
             </Button>
           ) : (
-            <Button variant="outline" size="sm"
-              className="h-8 px-3 rounded-xl border-primary/20 text-primary bg-primary/10 hover:bg-primary/20 text-xs font-bold gap-1.5"
-              onClick={() => setShowPublishModal(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowPublishModal(true)}
+              className="h-8 px-3 rounded-xl border-primary/20 text-primary bg-primary/10 hover:bg-primary/20 text-xs font-bold gap-1.5">
               <GlobeLock className="h-3.5 w-3.5" />Yayınla
             </Button>
           ))}
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-900" onClick={handleShare}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
           </Button>
           <AlertDialog>
@@ -473,226 +529,531 @@ export default function TripDetailsPage() {
             <AlertDialogContent className="rounded-2xl">
               <AlertDialogHeader>
                 <AlertDialogTitle className="font-bold">Geziyi sil?</AlertDialogTitle>
-                <AlertDialogDescription><strong>"{trip.title}"</strong> kalıcı olarak silinecek.</AlertDialogDescription>
+                <AlertDialogDescription>"{trip.title}" kalıcı olarak silinecek.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel className="rounded-xl font-bold">Vazgeç</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 rounded-xl font-bold">Evet, Sil</AlertDialogAction>
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 rounded-xl font-bold">Sil</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
       </div>
 
-      {/* ── Ana Layout ─────────────────────────────────────────────────── */}
+      {/* ── Main Layout ─────────────────────────────────────────────────── */}
       <main className="flex-1 flex overflow-hidden">
 
-        {/* ── Sol Panel ────────────────────────────────────────────────── */}
-        <aside className="w-full lg:w-[400px] xl:w-[440px] flex flex-col border-r bg-white shrink-0 overflow-hidden">
+        {/* ═══════════════════════════════════════════════════════════════
+            SOL PANEL — TEK SAYFA KAYDIRMA
+        ════════════════════════════════════════════════════════════════ */}
+        <aside className="w-full lg:w-[420px] xl:w-[460px] flex flex-col border-r bg-white shrink-0 overflow-y-auto">
 
-          {/* Sol panel tab bar */}
-          <div className="flex items-center gap-0 px-4 pt-3 pb-0 border-b bg-white shrink-0">
-            {LEFT_TABS.map(tab => {
-              const Icon = tab.icon;
-              const isActive = leftTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setLeftTab(tab.id)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-bold border-b-2 transition-all',
-                    isActive
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ── GEZILECEK / NOTLAR sekmesi ──────────────────────────────── */}
-          {leftTab === 'places' && (
-            <div className="flex-1 overflow-y-auto">
-              <TripSectionsPanel
-                trip={trip}
-                onUpdateNotes={handleUpdateNotes}
-                onAddSection={handleAddSection}
-                onDeleteSection={handleDeleteSection}
-                onRenameSectionTitle={handleRenameSectionTitle}
-                onAddSavedPlace={handleAddSavedPlace}
-                onDeleteSavedPlace={handleDeleteSavedPlace}
-                onAddBudgetItem={handleAddBudgetItem}
-                onDeleteBudgetItem={handleDeleteBudgetItem}
-                onSetBudgetTotal={handleSetBudgetTotal}
-              />
-            </div>
-          )}
-
-          {/* ── BÜTÇE sekmesi (kısayol) ─────────────────────────────────── */}
-          {leftTab === 'budget' && (
-            <div className="flex-1 overflow-y-auto">
-              <TripSectionsPanel
-                trip={{ ...trip, sections: [] }} // Sadece bütçe göster
-                onUpdateNotes={handleUpdateNotes}
-                onAddSection={handleAddSection}
-                onDeleteSection={handleDeleteSection}
-                onRenameSectionTitle={handleRenameSectionTitle}
-                onAddSavedPlace={handleAddSavedPlace}
-                onDeleteSavedPlace={handleDeleteSavedPlace}
-                onAddBudgetItem={handleAddBudgetItem}
-                onDeleteBudgetItem={handleDeleteBudgetItem}
-                onSetBudgetTotal={handleSetBudgetTotal}
-              />
-            </div>
-          )}
-
-          {/* ── ITINERARY sekmesi ───────────────────────────────────────── */}
-          {leftTab === 'itinerary' && (
-            <>
-              {/* Gün seçici + başlık */}
-              <div className="flex items-start gap-0 shrink-0 overflow-hidden">
-                {/* Gün sidebar'ı */}
-                <div className="w-[72px] border-r bg-gray-50/50 flex flex-col shrink-0 overflow-y-auto h-full">
-                  <div className="py-3 flex flex-col items-center gap-2">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Günler</span>
-                    <div className="flex flex-col gap-2 w-full px-2 mt-1">
-                      {trip.itinerary.days.map((day, idx) => (
-                        <motion.button
-                          key={day.day}
-                          onClick={() => setSelectedDayIndex(idx)}
-                          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-                          className={cn(
-                            "flex flex-col items-center justify-center py-3 rounded-xl transition-all",
-                            selectedDayIndex === idx
-                              ? "bg-primary text-white shadow-lg shadow-primary/30"
-                              : "text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm"
-                          )}
-                        >
-                          <span className="text-[9px] font-black uppercase tracking-tighter">Gün {day.day}</span>
-                          <span className={cn("text-[8px] font-semibold mt-0.5", selectedDayIndex === idx ? "text-primary/80" : "text-gray-400")}>
-                            {getDayDate(idx)}
-                          </span>
-                          <Badge className={cn("mt-1.5 text-[8px] px-1.5 py-0 h-4 font-black border-0 rounded-full",
-                            selectedDayIndex === idx ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500"
-                          )}>
-                            {day.items.length}
-                          </Badge>
-                        </motion.button>
-                      ))}
-                      <button
-                        onClick={handleAddDay}
-                        className="flex flex-col items-center justify-center py-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-primary hover:bg-primary/10 hover:border-primary/30 transition-all"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="text-[8px] font-black uppercase mt-1">Ekle</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Timeline panel */}
-                <div className="flex-1 overflow-y-auto flex flex-col" style={{ height: 'calc(100vh - 64px - 56px - 41px)' }}>
-                  {/* Günlük başlık */}
-                  <div className="px-4 py-3 border-b sticky top-0 bg-white/95 backdrop-blur-sm z-30">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-black text-gray-900">Gün {selectedDay.day}</h2>
-                          <span className="text-sm font-semibold text-gray-400">{getDayDate(selectedDayIndex)}</span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                            <MapPin className="h-3 w-3 text-primary" />{dayStats?.places || 0} durak
-                          </span>
-                          {dayStats && dayStats.places > 0 && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                              <Clock className="h-3 w-3 text-primary" />~{dayStats.duration}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <Button size="sm" className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary-dark"
-                        onClick={() => setShowDiscoverPanel(true)}>
-                        <Plus className="h-3 w-3" />Yer Ekle
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto">
-                    <Timeline
-                      itinerary={{ days: [selectedDay] }}
-                      onReorder={(_, items) => handleReorder(selectedDayIndex, items)}
-                      onAddPlace={(_, place) => handleAddPlace(selectedDayIndex, place)}
-                      onDeletePlace={(_, id) => handleDeletePlace(selectedDayIndex, id)}
-                      onUpdatePlaceNote={(_, id, note) => handleUpdatePlaceNote(selectedDayIndex, id, note)}
-                      onUpdateDayNote={(_, note) => handleUpdateDayNote(selectedDayIndex, note)}
-                      onPlaceClick={setActivePlaceId}
-                      activePlaceId={activePlaceId}
-                      onOpenDiscover={() => setShowDiscoverPanel(true)}
-                    />
-                  </div>
+          {/* ─── Trip Hero ──────────────────────────────────────────────── */}
+          <div className="relative bg-gradient-to-br from-orange-50 to-amber-50 border-b px-5 py-4">
+            <div className="flex items-start gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-300/40 shrink-0">
+                <Navigation className="h-7 w-7 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-black text-gray-900 truncate">{trip.title}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-gray-600">
+                    <CalendarDays className="h-3 w-3 text-primary" />
+                    {trip.start_date && format(new Date(trip.start_date), 'd MMM', { locale: tr })}
+                    {' – '}
+                    {trip.end_date && format(new Date(trip.end_date), 'd MMM yyyy', { locale: tr })}
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-gray-600">
+                    <Clock className="h-3 w-3 text-primary" />
+                    {tripDays} gün
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-gray-600">
+                    <MapPin className="h-3 w-3 text-primary" />
+                    {totalPlaces} durak
+                  </span>
                 </div>
               </div>
-            </>
-          )}
+            </div>
+
+            {/* Hızlı stats */}
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {[
+                { icon: Wind, label: 'Balon', count: trip.itinerary.days.flatMap(d => d.items).filter(i => i.agency_service?.type === 'balloon').length, color: 'text-sky-500' },
+                { icon: Bus, label: 'Tur', count: trip.itinerary.days.flatMap(d => d.items).filter(i => i.agency_service?.type === 'tour').length, color: 'text-orange-500' },
+                { icon: Zap, label: 'Aktivite', count: trip.itinerary.days.flatMap(d => d.items).filter(i => i.agency_service?.type === 'activity').length, color: 'text-purple-500' },
+              ].map(stat => (
+                <div key={stat.label} className="flex items-center gap-1.5 bg-white/70 rounded-xl px-2.5 py-2 border border-white/80">
+                  <stat.icon className={cn('h-3.5 w-3.5 shrink-0', stat.color)} />
+                  <div>
+                    <p className="text-[11px] font-black text-gray-800">{stat.count}</p>
+                    <p className="text-[9px] text-gray-400 font-semibold">{stat.label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ─── NOTLAR ─────────────────────────────────────────────────── */}
+          <SectionAccordion
+            title="Notlar"
+            icon={<MessageSquare className="h-3.5 w-3.5 text-amber-500" />}
+            isOpen={notesOpen}
+            onToggle={() => setNotesOpen(v => !v)}
+          >
+            {editingNotes ? (
+              <div className="px-4 py-3 space-y-2">
+                <Textarea
+                  value={noteDraft}
+                  onChange={e => setNoteDraft(e.target.value)}
+                  placeholder="Ulaşım notları, otel bilgileri, önemli hatırlatmalar..."
+                  className="min-h-[90px] text-sm rounded-xl bg-amber-50 border-amber-200 resize-none"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs font-bold" onClick={() => setEditingNotes(false)}>Vazgeç</Button>
+                  <Button size="sm" className="h-7 text-xs font-bold bg-primary" onClick={handleSaveNotes}>Kaydet</Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setEditingNotes(true); setNoteDraft(trip.trip_notes || ''); }}
+                className="w-full text-left px-4 py-3 hover:bg-amber-50/50 transition-colors group min-h-[56px]"
+              >
+                {trip.trip_notes ? (
+                  <p className="text-sm text-gray-600 leading-relaxed">{trip.trip_notes}</p>
+                ) : (
+                  <p className="text-sm text-gray-400 group-hover:text-gray-500 italic">
+                    Ulaşım notları, otel bilgileri, önemli hatırlatmalar...
+                  </p>
+                )}
+              </button>
+            )}
+          </SectionAccordion>
+
+          {/* ─── GEZİLECEK YERLER / BÖLÜMLER ───────────────────────────── */}
+          <SectionAccordion
+            title="Gezilecek Yerler"
+            icon={<Compass className="h-3.5 w-3.5 text-blue-500" />}
+            isOpen={placesOpen}
+            onToggle={() => setPlacesOpen(v => !v)}
+          >
+            {/* Her bölüm */}
+            {(trip.sections || []).map(section => {
+              const typeMeta = SECTION_TYPES.find(t => t.id === section.type);
+              const SIcon = typeMeta?.icon || Compass;
+              return (
+                <div key={section.id} className="border-b border-gray-50">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/80">
+                    <SIcon className={cn('h-3.5 w-3.5', typeMeta?.color)} />
+                    <span className="text-[12px] font-bold text-gray-700 flex-1">{section.title}</span>
+                    <button onClick={() => handleDeleteSection(section.id)} className="p-1 hover:bg-red-50 rounded text-gray-300 hover:text-red-400 transition-colors">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {section.items.map(place => (
+                    <div key={place.id} className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 group">
+                      <MapPin className="h-3.5 w-3.5 text-gray-300 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1 truncate">{place.name}</span>
+                      <button onClick={() => handleDeleteSavedPlace(section.id, place.id)}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-all">
+                        <X className="h-3 w-3 text-gray-300" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    <MapPin className="h-3.5 w-3.5 text-gray-300 shrink-0" />
+                    <input
+                      value={quickAddValues[section.id] || ''}
+                      onChange={e => setQuickAddValues(prev => ({ ...prev, [section.id]: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') handleQuickAddPlace(section.id); }}
+                      placeholder="Yer ekle..."
+                      className="flex-1 text-sm text-gray-600 placeholder:text-gray-300 bg-transparent outline-none py-0.5"
+                    />
+                    {quickAddValues[section.id] && (
+                      <button onClick={() => handleQuickAddPlace(section.id)}
+                        className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20">
+                        <Plus className="h-3 w-3 text-primary" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Yeni bölüm ekle */}
+            <div className="px-4 py-3">
+              {showAddSection ? (
+                <div className="space-y-2 bg-gray-50 rounded-xl p-3">
+                  <div className="grid grid-cols-5 gap-1">
+                    {SECTION_TYPES.map(type => {
+                      const Icon = type.icon;
+                      return (
+                        <button key={type.id} onClick={() => setNewSectionType(type.id)}
+                          className={cn('flex flex-col items-center gap-0.5 p-1.5 rounded-lg border text-[9px] font-bold transition-all',
+                            newSectionType === type.id ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-gray-500')}>
+                          <Icon className={cn('h-4 w-4', newSectionType === type.id ? 'text-primary' : type.color)} />
+                          {type.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Input value={newSectionTitle} onChange={e => setNewSectionTitle(e.target.value)}
+                    placeholder="Bölüm adı (isteğe bağlı)" className="h-8 text-sm rounded-lg"
+                    onKeyDown={e => { if (e.key === 'Enter') handleAddSection(); }} />
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs font-bold" onClick={() => setShowAddSection(false)}>Vazgeç</Button>
+                    <Button size="sm" className="flex-1 h-8 text-xs font-bold bg-primary" onClick={handleAddSection}>Ekle</Button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddSection(true)}
+                  className="w-full flex items-center gap-2 py-1.5 text-xs font-bold text-gray-400 hover:text-primary transition-colors group">
+                  <div className="w-5 h-5 rounded-full border-2 border-dashed border-gray-300 group-hover:border-primary flex items-center justify-center transition-colors">
+                    <Plus className="h-3 w-3" />
+                  </div>
+                  Başlık ekle (örn: "Restoranlar")
+                </button>
+              )}
+            </div>
+          </SectionAccordion>
+
+          {/* ─── ITINERARY — GÜN GÜN ────────────────────────────────────── */}
+          <SectionAccordion
+            title="Itinerary"
+            icon={<CalendarDays className="h-3.5 w-3.5 text-teal-500" />}
+            isOpen={itineraryOpen}
+            onToggle={() => setItineraryOpen(v => !v)}
+            badge={<span className="text-[10px] font-black text-gray-400">{tripDays} gün</span>}
+          >
+            {trip.itinerary.days.map((day, idx) => {
+              const isExpanded = expandedDays.has(idx);
+              const date = getDayDate(idx);
+              const agencyCount = day.items.filter(i => i.agency_service).length;
+              const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon');
+              const tourItem = day.items.find(i => i.agency_service?.type === 'tour');
+
+              return (
+                <div key={day.day} className="border-b border-gray-50 last:border-0">
+                  {/* Gün başlığı */}
+                  <button
+                    onClick={() => {
+                      setExpandedDays(prev => {
+                        const next = new Set(prev);
+                        if (next.has(idx)) next.delete(idx);
+                        else next.add(idx);
+                        return next;
+                      });
+                      setActiveDayIndex(idx);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group text-left"
+                  >
+                    {/* Gün numarası */}
+                    <div className={cn(
+                      'w-9 h-9 rounded-xl flex flex-col items-center justify-center shrink-0 transition-all',
+                      activeDayIndex === idx ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-gray-100 text-gray-500 group-hover:bg-primary/10 group-hover:text-primary'
+                    )}>
+                      <span className="text-[9px] font-black uppercase leading-none">Gün</span>
+                      <span className="text-sm font-black leading-none">{day.day}</span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-800">{date}</span>
+                        {hasBalloon && (
+                          <span className="flex items-center gap-0.5 text-[9px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full">
+                            <Wind className="h-2.5 w-2.5" />Balon
+                          </span>
+                        )}
+                        {tourItem && (
+                          <span className="text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full truncate max-w-[80px]">
+                            {tourItem.name.split(' ').slice(0, 2).join(' ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-gray-400">{day.items.length} durak</span>
+                        {agencyCount > 0 && <span className="text-[10px] font-bold text-primary">{agencyCount} servis</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={e => { e.stopPropagation(); setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
+                        className="h-7 px-2.5 text-[10px] font-bold bg-primary rounded-lg gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Plus className="h-3 w-3" />Ekle
+                      </Button>
+                      {isExpanded
+                        ? <ChevronDown className="h-4 w-4 text-gray-400" />
+                        : <ChevronRight className="h-4 w-4 text-gray-400" />
+                      }
+                    </div>
+                  </button>
+
+                  {/* Gün içeriği — Timeline */}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeInOut' }}
+                        className="overflow-hidden border-t border-gray-50"
+                      >
+                        {/* Balon özel banner */}
+                        {hasBalloon && (
+                          <div className="mx-4 mt-3 flex items-center gap-2.5 px-3 py-2 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-xl">
+                            <Wind className="h-4 w-4 text-sky-500 shrink-0" />
+                            <div>
+                              <p className="text-[11px] font-black text-sky-700">Balon günü! ⏰ 05:30 kalkış</p>
+                              <p className="text-[10px] text-sky-500">Bir gün öncesinden hazırlık yapın. Transfer sabah 04:45'te.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <Timeline
+                          itinerary={{ days: [day] }}
+                          onReorder={(_, items) => handleReorder(idx, items)}
+                          onAddPlace={(_, place) => handleAddPlace(idx, place)}
+                          onDeletePlace={(_, placeId) => handleDeletePlace(idx, placeId)}
+                          onUpdatePlaceNote={(_, placeId, note) => handleUpdatePlaceNote(idx, placeId, note)}
+                          onUpdateDayNote={(_, note) => handleUpdateDayNote(idx, note)}
+                          onPlaceClick={(placeId) => { setActivePlaceId(placeId); setActiveDayIndex(idx); }}
+                          activePlaceId={activePlaceId}
+                          onOpenDiscover={() => { setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+
+            {/* Yeni gün ekle */}
+            <button
+              onClick={handleAddDay}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group text-left"
+            >
+              <div className="w-9 h-9 rounded-xl border-2 border-dashed border-gray-200 group-hover:border-primary flex items-center justify-center transition-colors">
+                <Plus className="h-4 w-4 text-gray-400 group-hover:text-primary transition-colors" />
+              </div>
+              <span className="text-sm font-bold text-gray-400 group-hover:text-primary transition-colors">
+                Yeni gün ekle
+              </span>
+            </button>
+          </SectionAccordion>
+
+          {/* ─── BÜTÇE ──────────────────────────────────────────────────── */}
+          <SectionAccordion
+            title="Bütçe"
+            icon={<Wallet className="h-3.5 w-3.5 text-emerald-500" />}
+            isOpen={budgetOpen}
+            onToggle={() => setBudgetOpen(v => !v)}
+            badge={
+              (trip.budget_items?.length || 0) > 0 ? (
+                <span className={cn(
+                  'text-[10px] font-black px-1.5 py-0.5 rounded-full',
+                  trip.budget_total && budgetStats.total > trip.budget_total
+                    ? 'bg-red-50 text-red-500'
+                    : 'bg-emerald-50 text-emerald-600'
+                )}>
+                  {budgetStats.sym}{budgetStats.total.toFixed(0)}
+                </span>
+              ) : undefined
+            }
+          >
+            <div className="px-4 py-3 space-y-3">
+              {/* Hedef bütçe */}
+              <div className="flex items-center gap-2">
+                <PiggyBank className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span className="text-xs font-bold text-gray-600 whitespace-nowrap">Hedef:</span>
+                <div className="flex items-center gap-1 bg-gray-50 border rounded-lg px-2 py-1">
+                  <input
+                    type="number"
+                    value={budgetTotalDraft}
+                    onChange={e => setBudgetTotalDraft(e.target.value)}
+                    onBlur={() => updateTrip(t => ({ ...t, budget_total: Number(budgetTotalDraft), budget_currency: 'EUR' }))}
+                    className="w-20 text-sm font-bold bg-transparent outline-none"
+                    placeholder="0"
+                  />
+                  <span className="text-xs font-bold text-gray-400">€</span>
+                </div>
+                {trip.budget_total && budgetStats.total > 0 && (
+                  <span className={cn('text-[11px] font-bold ml-auto', budgetStats.total > trip.budget_total ? 'text-red-500' : 'text-emerald-600')}>
+                    {budgetStats.total > trip.budget_total
+                      ? `${budgetStats.sym}${(budgetStats.total - trip.budget_total).toFixed(0)} aşıldı`
+                      : `${budgetStats.sym}${(trip.budget_total - budgetStats.total).toFixed(0)} kaldı`
+                    }
+                  </span>
+                )}
+              </div>
+
+              {/* Harcama listesi */}
+              {(trip.budget_items || []).map(item => {
+                const catMeta = BUDGET_CATS.find(c => c.id === item.category);
+                const CatIcon = catMeta?.icon || ShoppingBag;
+                return (
+                  <div key={item.id} className="flex items-center gap-2 py-1.5 group">
+                    <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0', catMeta?.color || 'bg-gray-100 text-gray-500')}>
+                      <CatIcon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-gray-800 truncate">{item.name}</p>
+                      <p className="text-[10px] text-gray-400">{catMeta?.label}</p>
+                    </div>
+                    <span className="text-sm font-black text-gray-700 shrink-0">
+                      {item.currency === 'EUR' ? '€' : item.currency === 'USD' ? '$' : '₺'}{item.amount}
+                    </span>
+                    <button onClick={() => handleDeleteBudgetItem(item.id)}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-all">
+                      <X className="h-3.5 w-3.5 text-gray-300" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Harcama ekle */}
+              {showBudgetForm ? (
+                <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+                  <div className="grid grid-cols-4 gap-1">
+                    {BUDGET_CATS.slice(0, 4).map(cat => {
+                      const Icon = cat.icon;
+                      return (
+                        <button key={cat.id} onClick={() => setBudgetForm(p => ({ ...p, category: cat.id }))}
+                          className={cn('flex flex-col items-center gap-0.5 p-1.5 rounded-lg border text-[9px] font-bold transition-all',
+                            budgetForm.category === cat.id ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-gray-500')}>
+                          <Icon className="h-3.5 w-3.5" />{cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {BUDGET_CATS.slice(4).map(cat => {
+                      const Icon = cat.icon;
+                      return (
+                        <button key={cat.id} onClick={() => setBudgetForm(p => ({ ...p, category: cat.id }))}
+                          className={cn('flex flex-col items-center gap-0.5 p-1.5 rounded-lg border text-[9px] font-bold transition-all',
+                            budgetForm.category === cat.id ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-gray-500')}>
+                          <Icon className="h-3.5 w-3.5" />{cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Input placeholder="Harcama adı..." value={budgetForm.name || ''} onChange={e => setBudgetForm(p => ({ ...p, name: e.target.value }))} className="h-9 text-sm rounded-lg" />
+                  <div className="flex gap-2">
+                    <div className="flex-1 flex items-center border rounded-lg overflow-hidden">
+                      <input type="number" placeholder="0" value={budgetForm.amount || ''}
+                        onChange={e => setBudgetForm(p => ({ ...p, amount: Number(e.target.value) }))}
+                        className="flex-1 px-3 py-2 text-sm outline-none bg-transparent" />
+                      <select value={budgetForm.currency || 'EUR'} onChange={e => setBudgetForm(p => ({ ...p, currency: e.target.value }))}
+                        className="border-l px-2 py-2 text-xs bg-gray-50 outline-none">
+                        <option>EUR</option><option>USD</option><option>TRY</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs font-bold" onClick={() => setShowBudgetForm(false)}>Vazgeç</Button>
+                    <Button size="sm" className="flex-1 h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700" onClick={handleAddBudgetItem}>Ekle</Button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowBudgetForm(true)}
+                  className="w-full flex items-center gap-2 py-2 text-xs font-bold text-gray-400 hover:text-emerald-600 transition-colors group">
+                  <div className="w-5 h-5 rounded-full border-2 border-dashed border-gray-300 group-hover:border-emerald-400 flex items-center justify-center transition-colors">
+                    <Plus className="h-3 w-3" />
+                  </div>
+                  Harcama ekle
+                </button>
+              )}
+            </div>
+          </SectionAccordion>
+
+          {/* Alt boşluk */}
+          <div className="h-24" />
         </aside>
 
-        {/* ── Harita paneli ─────────────────────────────────────────────── */}
-        <section className="hidden lg:block flex-1 relative bg-gray-100">
+        {/* ═══════════════════════════════════════════════════════════════
+            SAĞ PANEL — SABİT HARİTA
+        ════════════════════════════════════════════════════════════════ */}
+        <section className="hidden lg:block flex-1 relative bg-gray-100 sticky top-0">
           <TripMap
-            itinerary={{ days: [selectedDay] }}
+            itinerary={{ days: activeDay ? [activeDay] : [] }}
             activePlaceId={activePlaceId}
-            onMarkerClick={(id) => {
-              setActivePlaceId(id);
-              // Harita tıklaması itinerary sekmesine geçsin
-              setLeftTab('itinerary');
-              setTimeout(() => {
-                document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }, 100);
+            onMarkerClick={(placeId) => {
+              setActivePlaceId(placeId);
+              document.getElementById(`place-${placeId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }}
-            onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
+            onAddPlace={(place) => handleAddPlace(activeDayIndex, place)}
           />
 
-          {/* Stats overlay */}
-          <div className="absolute top-4 left-4 z-10 pointer-events-none">
+          {/* Harita üstü: Gün seçici hızlı butonlar */}
+          <div className="absolute top-4 left-4 right-4 z-10 flex items-center gap-2 overflow-x-auto scrollbar-none">
+            {trip.itinerary.days.map((day, idx) => (
+              <button
+                key={day.day}
+                onClick={() => { setActiveDayIndex(idx); if (!expandedDays.has(idx)) { setExpandedDays(prev => new Set([...prev, idx])); } }}
+                className={cn(
+                  'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all shadow-sm',
+                  activeDayIndex === idx
+                    ? 'bg-primary text-white shadow-primary/30'
+                    : 'bg-white/90 backdrop-blur-sm text-gray-700 hover:bg-white'
+                )}
+              >
+                Gün {day.day}
+                <Badge className={cn('text-[8px] h-4 px-1 font-black border-0 rounded-full',
+                  activeDayIndex === idx ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600')}>
+                  {day.items.length}
+                </Badge>
+              </button>
+            ))}
+          </div>
+
+          {/* Harita stats overlay */}
+          <div className="absolute bottom-6 left-4 z-10">
             <div className="bg-white/90 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-white/50">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Gün {selectedDay.day} Özeti</p>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Gün {(activeDay?.day) || 1}</p>
               <div className="flex items-center gap-4">
                 <div>
-                  <p className="text-2xl font-black text-gray-900 leading-none">{selectedDay.items.length}</p>
+                  <p className="text-2xl font-black text-gray-900 leading-none">{activeDay?.items.length || 0}</p>
                   <p className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">Durak</p>
                 </div>
-                <div className="w-px h-8 bg-gray-200" />
-                <div>
-                  <p className="text-2xl font-black text-gray-900 leading-none">{dayStats?.duration || '—'}</p>
-                  <p className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">Süre</p>
-                </div>
+                {activeDay && activeDay.items.some(i => i.agency_service) && (
+                  <>
+                    <div className="w-px h-8 bg-gray-200" />
+                    <div>
+                      <p className="text-2xl font-black text-gray-900 leading-none">
+                        {activeDay.items.filter(i => i.agency_service).length}
+                      </p>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">Servis</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </section>
 
-        {/* Mobil harita */}
-        <div className="lg:hidden fixed bottom-6 right-6 z-50">
+        {/* Mobil harita butonu */}
+        <div className="lg:hidden fixed bottom-24 right-6 z-40">
           <Sheet open={isMapSheetOpen} onOpenChange={setIsMapSheetOpen}>
             <SheetTrigger asChild>
-              <Button size="lg" className="h-12 px-6 rounded-full shadow-2xl bg-primary font-black text-[10px] uppercase tracking-wider gap-2">
-                <MapPin className="h-4 w-4" />Haritayı Aç
+              <Button size="lg" className="h-12 px-5 rounded-full shadow-2xl bg-primary font-black text-[10px] uppercase tracking-wider gap-2">
+                <MapPin className="h-4 w-4" />Harita
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[80vh] p-0 rounded-t-3xl overflow-hidden">
               <SheetHeader className="p-4 border-b">
-                <SheetTitle className="text-base font-bold">Rota — Gün {selectedDay.day}</SheetTitle>
+                <SheetTitle className="text-base font-bold">Rota Haritası</SheetTitle>
               </SheetHeader>
               <div className="h-full relative">
                 <TripMap
-                  itinerary={{ days: [selectedDay] }}
+                  itinerary={{ days: activeDay ? [activeDay] : [] }}
                   activePlaceId={activePlaceId}
-                  onMarkerClick={(id) => { setActivePlaceId(id); setIsMapSheetOpen(false); }}
-                  onAddPlace={(place) => { handleAddPlace(selectedDayIndex, place); setIsMapSheetOpen(false); }}
+                  onMarkerClick={(placeId) => { setActivePlaceId(placeId); setIsMapSheetOpen(false); }}
+                  onAddPlace={(place) => { handleAddPlace(activeDayIndex, place); setIsMapSheetOpen(false); }}
                 />
               </div>
             </SheetContent>
@@ -704,7 +1065,7 @@ export default function TripDetailsPage() {
       <AddToTripPanel
         isOpen={showDiscoverPanel}
         onClose={() => setShowDiscoverPanel(false)}
-        onAddPlace={(place) => handleAddPlace(selectedDayIndex, place)}
+        onAddPlace={(place) => handleAddPlace(discoverDayIndex, place)}
         existingPlaceIds={existingPlaceIds}
       />
 
@@ -713,9 +1074,53 @@ export default function TripDetailsPage() {
         <TripBookingPanel
           tripTitle={trip.title}
           tripDays={trip.itinerary.days.length}
-          tripPlaces={trip.itinerary.days.reduce((sum, day) => sum + day.items.length, 0)}
+          tripPlaces={totalPlaces}
         />
       )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Accordion sarmalayıcı
+// ════════════════════════════════════════════════════════════════════════════
+function SectionAccordion({
+  title, icon, isOpen, onToggle, children, badge,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div className="border-b border-gray-100">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+      >
+        {icon}
+        <span className="flex-1 text-sm font-bold text-gray-800">{title}</span>
+        {badge && <span className="mr-1">{badge}</span>}
+        {isOpen
+          ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+        }
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
