@@ -8,6 +8,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, {
   Trip, Place, ItineraryDay,
   TripSection, SavedPlace, BudgetItem, BudgetCategory,
+  AssignedTour, AssignedBalloon,
 } from '@/db/api';
 import { Timeline } from '@/components/trip/Timeline';
 import { TripMap } from '@/components/trip/Map';
@@ -22,6 +23,8 @@ import {
   PiggyBank, CalendarDays, Users, Wind, Bus, Zap,
   ExternalLink, Edit3, Euro,
 } from 'lucide-react';
+import { toursApi, balloonsApi } from '@/db/agency-api';
+import type { Tour, BalloonFlight } from '@/types/agency';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -226,81 +229,23 @@ export default function TripDetailsPage() {
     applyItinerary({ ...trip.itinerary, days: fn([...trip.itinerary.days]) });
   }, [trip, applyItinerary]);
 
-  // ── Çakışma kontrolü ──────────────────────────────────────────────────────
-  const validateAddToDay = useCallback((day: ItineraryDay, place: Place): string | null => {
-    const agencyType = place.agency_service?.type;
-    const hasBalloon = day.items.some(i => i.agency_service?.type === 'balloon');
-    const hasTour    = day.items.some(i => i.agency_service?.type === 'tour');
-
-    if (agencyType === 'balloon' && hasTour)
-      return '🎈 Balon günü tur eklenmez. Balonu ayrı bir güne taşıyın.';
-    if (agencyType === 'balloon' && hasBalloon)
-      return '🎈 Bu güne zaten bir balon turu eklenmiş.';
-    if (agencyType === 'tour' && hasBalloon)
-      return '🗺 Balon günü tur eklenmez. Turu ayrı bir güne ekleyin.';
-    if (agencyType === 'tour' && hasTour)
-      return '🗺 Bu güne zaten bir tur eklenmiş. Kapadokya’da günde en fazla 1 tur yapılabilir.';
-    return null;
-  }, []);
-
   const handleAddPlace = useCallback((dayIndex: number, place: Place) => {
     withDays(days => {
       const day = days[dayIndex];
-
-      // Çakışma kontrolü
-      const conflict = validateAddToDay(day, place);
-      if (conflict) {
-        toast.error(conflict, { duration: 4000 });
-        return days; // değiştirme
+      const last = day.items[day.items.length - 1];
+      let startMin = 9 * 60;
+      if (last) {
+        const [h, m] = (last.start_time || '09:00').split(':').map(Number);
+        startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
       }
-
       const toHHMM = (mins: number) =>
         `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-
-      // Agency servisler için saati koru — genel yer ekleme mantığı ezmesin
-      const agencyType = place.agency_service?.type;
-      let startTime = place.start_time;
-      let endTime   = place.end_time;
-
-      if (!agencyType) {
-        // Genel Google Places yeri → son öğeden sonraya koy
-        const last = day.items.filter(i => !i.agency_service?.type.match(/balloon/)).at(-1);
-        let startMin = 9 * 60;
-        if (last) {
-          const [h, m] = (last.start_time || '09:00').split(':').map(Number);
-          startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
-        }
-        startTime = toHHMM(startMin);
-        endTime   = toHHMM(startMin + (place.estimated_duration_minutes || 60));
-      } else if (agencyType === 'balloon') {
-        // Balon her zaman 05:30
-        startTime = '05:30';
-        endTime   = toHHMM(5 * 60 + 30 + (place.estimated_duration_minutes || 90));
-      } else if (agencyType === 'tour') {
-        // Tur kendi start_time değerini korur (genellikle 09:00)
-        startTime = place.start_time || '09:00';
-        endTime = toHHMM(parseInt(startTime.split(":")[0]) * 60 + parseInt(startTime.split(":")[1]) + (place.estimated_duration_minutes || 480));
-      } else if (agencyType === 'activity') {
-        // Aktivite kendi time_slot'unu korur
-        startTime = place.start_time || '10:00';
-        endTime = toHHMM(parseInt(startTime.split(":")[0]) * 60 + parseInt(startTime.split(":")[1]) + (place.estimated_duration_minutes || 120));
-        );
-      }
-
-      const newPlace = { ...place, start_time: startTime, end_time: endTime };
+      const newPlace = { ...place, start_time: toHHMM(startMin), end_time: toHHMM(startMin + (place.estimated_duration_minutes || 60)) };
       days[dayIndex] = { ...day, items: [...day.items, newPlace] };
       return days;
     });
-
-    const agencyType = place.agency_service?.type;
-    if (agencyType === 'balloon') {
-      toast.success(`${place.name} eklendi — ⏰ 05:30 kalkış! Bir önceki gece erken yatmanız önerilir.`, { duration: 5000 });
-    } else if (agencyType === 'tour') {
-      toast.success(`${place.name} rotaya eklendi — kalkış: ${place.start_time || '09:00'}`);
-    } else {
-      toast.success(`${place.name} rotaya eklendi`);
-    }
-  }, [withDays, validateAddToDay]);
+    toast.success(`${place.name} rotaya eklendi`);
+  }, [withDays]);
 
   const handleDeletePlace = useCallback((dayIndex: number, placeId: string) => {
     withDays(days => {
@@ -331,12 +276,91 @@ export default function TripDetailsPage() {
   const handleAddDay = useCallback(() => {
     if (!trip) return;
     const nextNum = trip.itinerary.days.length + 1;
-    withDays(days => [...days, { day: nextNum, items: [] }]);
+    withDays(days => [...days, { day: nextNum, items: [], day_type: 'free' as const }]);
     toast.success(`Gün ${nextNum} eklendi`);
     const newIdx = trip.itinerary.days.length;
     setExpandedDays(prev => new Set([...prev, newIdx]));
     setActiveDayIndex(newIdx);
   }, [trip, withDays]);
+
+  // ── Güne tur ata ────────────────────────────────────────────────────────────
+  const handleAssignTour = useCallback(async (dayIndex: number, tour: Tour) => {
+    const assignedTour: AssignedTour = {
+      id: tour.id,
+      code: tour.code,
+      name: tour.name,
+      slug: tour.slug,
+      start_time: tour.start_time || '09:00',
+      end_time: tour.end_time || '17:30',
+      duration_hours: tour.duration_hours,
+      price_adult: tour.group_price_adult,
+      currency: tour.currency || 'EUR',
+      cover_image: tour.cover_image,
+      itinerary: tour.itinerary || [],
+      entrance_fees: [],
+    };
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'tour', assigned_tour: assignedTour };
+      return days;
+    });
+    toast.success(`${tour.name} Gün ${dayIndex + 1}'e atandı`);
+  }, [withDays]);
+
+  // ── Güne balon ata ──────────────────────────────────────────────────────────
+  const handleAssignBalloon = useCallback(async (dayIndex: number, balloon: BalloonFlight) => {
+    const assignedBalloon: AssignedBalloon = {
+      id: balloon.id,
+      name: balloon.name,
+      slug: balloon.slug,
+      flight_time: balloon.flight_time || '05:30',
+      duration_minutes: balloon.duration_minutes,
+      price_adult: balloon.sell_price_adult,
+      currency: balloon.currency || 'EUR',
+      cover_image: balloon.cover_image,
+    };
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'balloon', assigned_balloon: assignedBalloon };
+      return days;
+    });
+    toast.success(`${balloon.name} Gün ${dayIndex + 1}'e atandı — ⏰ 05:30 kalkış!`);
+  }, [withDays]);
+
+  // ── Turu kaldır ─────────────────────────────────────────────────────────────
+  const handleRemoveTour = useCallback((dayIndex: number) => {
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_tour: undefined };
+      return days;
+    });
+    toast.success('Tur günden kaldırıldı');
+  }, [withDays]);
+
+  // ── Balonu kaldır ───────────────────────────────────────────────────────────
+  const handleRemoveBalloon = useCallback((dayIndex: number) => {
+    withDays(days => {
+      days[dayIndex] = { ...days[dayIndex], day_type: 'free', assigned_balloon: undefined };
+      return days;
+    });
+    toast.success('Balon turu günden kaldırıldı');
+  }, [withDays]);
+
+  // ── Tur/Balon ata modal state ────────────────────────────────────────────────
+  const [showAssignModal, setShowAssignModal] = useState<number | null>(null); // dayIndex
+  const [availableTours, setAvailableTours] = useState<Tour[]>([]);
+  const [availableBalloons, setAvailableBalloons] = useState<BalloonFlight[]>([]);
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  const openAssignModal = useCallback(async (dayIndex: number) => {
+    setShowAssignModal(dayIndex);
+    if (availableTours.length === 0) {
+      setAssignLoading(true);
+      try {
+        const [tours, balloons] = await Promise.all([toursApi.getAll(), balloonsApi.getAll()]);
+        setAvailableTours(tours);
+        setAvailableBalloons(balloons);
+      } catch { toast.error('Turlar yüklenemedi'); }
+      finally { setAssignLoading(false); }
+    }
+  }, [availableTours.length]);
 
   // ── Notes ────────────────────────────────────────────────────────────────
   const handleSaveNotes = () => {
@@ -518,6 +542,87 @@ export default function TripDetailsPage() {
                 {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
                 Yayınla
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tur/Balon Atama Modalı ──────────────────────────────────────── */}
+      {showAssignModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-gray-900">Gün {showAssignModal + 1}'e Ne Atayalım?</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Tur veya balon turu seçin — gün bu programa göre düzenlenir</p>
+              </div>
+              <button onClick={() => setShowAssignModal(null)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            {assignLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {/* Balon bölümü */}
+                {availableBalloons.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Balon Turları</p>
+                    {availableBalloons.map(b => (
+                      <button key={b.id}
+                        onClick={() => { handleAssignBalloon(showAssignModal, b); setShowAssignModal(null); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 transition-all mb-2 text-left">
+                        <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                          <Wind className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-sky-800">{b.name}</p>
+                          <p className="text-xs text-sky-600">⏰ 05:30 kalkış · {b.duration_minutes}dk · {b.sell_price_adult}€/kişi</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tur bölümü */}
+                {availableTours.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Günlük Turlar</p>
+                    {availableTours.map(t => {
+                      const tourColor: Record<string, string> = { red: 'border-red-200 bg-red-50 hover:bg-red-100', green: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100', blue: 'border-blue-200 bg-blue-50 hover:bg-blue-100' };
+                      const tourText: Record<string, string> = { red: 'text-red-800', green: 'text-emerald-800', blue: 'text-blue-800' };
+                      const tourLabel: Record<string, string> = { red: '🔴 Kırmızı Tur', green: '🟢 Yeşil Tur', blue: '🔵 Mavi Tur' };
+                      return (
+                        <button key={t.id}
+                          onClick={() => { handleAssignTour(showAssignModal, t); setShowAssignModal(null); }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all mb-2 text-left ${tourColor[t.code] || 'border-orange-200 bg-orange-50 hover:bg-orange-100'}`}>
+                          <div className="w-9 h-9 rounded-xl bg-white/60 flex items-center justify-center shrink-0">
+                            <Bus className={`h-4 w-4 ${tourText[t.code] || 'text-orange-700'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className={`text-sm font-bold ${tourText[t.code] || 'text-orange-800'}`}>{t.name}</p>
+                              <span className="text-[9px] font-bold text-gray-500">{tourLabel[t.code] || '⭐ Özel Tur'}</span>
+                            </div>
+                            <p className={`text-xs ${tourText[t.code] || 'text-orange-600'} opacity-75`}>⏰ {t.start_time} · {t.duration_hours}s · {t.group_price_adult}€/kişi</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {availableTours.length === 0 && availableBalloons.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-6">Henüz aktif tur veya balon turu yok</p>
+                )}
+              </div>
+            )}
+
+            <div className="shrink-0 pt-2 border-t border-gray-100">
+              <Button variant="ghost" className="w-full h-9 text-sm font-bold text-gray-500" onClick={() => setShowAssignModal(null)}>Vazgeç</Button>
             </div>
           </div>
         </div>
@@ -831,12 +936,33 @@ export default function TripDetailsPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-gray-400">{day.items.length} durak</span>
-                        {agencyCount > 0 && <span className="text-[10px] font-bold text-primary">{agencyCount} servis</span>}
+                        {day.assigned_tour && (
+                          <span className="text-[10px] font-bold text-orange-600">{day.assigned_tour.itinerary.length} tur durağı</span>
+                        )}
+                        {day.assigned_balloon && (
+                          <span className="text-[10px] font-bold text-sky-600">Balon günü</span>
+                        )}
+                        {!day.assigned_tour && !day.assigned_balloon && (
+                          <span className="text-[10px] text-gray-400">{day.items.length} durak</span>
+                        )}
+                        {day.items.length > 0 && (day.assigned_tour || day.assigned_balloon) && (
+                          <span className="text-[10px] text-rose-500">· {day.items.length} akşam aktivitesi</span>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Tur/Balon Ata */}
+                      {!day.assigned_tour && !day.assigned_balloon && (
+                        <Button
+                          size="sm"
+                          onClick={e => { e.stopPropagation(); openAssignModal(idx); }}
+                          className="h-7 px-2.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                          variant="outline"
+                        >
+                          <Bus className="h-3 w-3" />Tur Ata
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         onClick={e => { e.stopPropagation(); setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
@@ -882,6 +1008,8 @@ export default function TripDetailsPage() {
                           onPlaceClick={(placeId) => { setActivePlaceId(placeId); setActiveDayIndex(idx); }}
                           activePlaceId={activePlaceId}
                           onOpenDiscover={() => { setDiscoverDayIndex(idx); setShowDiscoverPanel(true); }}
+                          onRemoveTour={() => handleRemoveTour(idx)}
+                          onRemoveBalloon={() => handleRemoveBalloon(idx)}
                         />
                       </motion.div>
                     )}
