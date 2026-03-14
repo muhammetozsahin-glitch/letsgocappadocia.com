@@ -25,8 +25,49 @@ export interface Place {
   };
 }
 
+// ── Güne atanan tur referansı ───────────────────────────────────────────────
+export interface AssignedTour {
+  id: string;
+  code: string;           // 'red' | 'green' | 'blue'
+  name: string;
+  slug: string;
+  start_time: string;     // '09:00'
+  end_time: string;       // '17:30'
+  duration_hours: number;
+  price_adult: number;
+  currency: string;
+  cover_image?: string;
+  itinerary: Array<{      // Turun kendi durakları (sabit, değiştirilemez)
+    time: string;
+    title: string;
+    description?: string;
+    duration_minutes?: number;
+    place_id?: string;
+  }>;
+  entrance_fees?: Array<{ name: string; price: number }>; // Ayrıca ödenecek
+}
+
+// ── Güne atanan balon referansı ──────────────────────────────────────────────
+export interface AssignedBalloon {
+  id: string;
+  name: string;
+  slug: string;
+  flight_time: string;    // '05:30'
+  duration_minutes: number;
+  price_adult: number;
+  currency: string;
+  cover_image?: string;
+}
+
 export interface ItineraryDay {
   day: number;
+  /** Gün tipi — 'free' serbest, 'tour' tur günü, 'balloon' balon günü */
+  day_type?: 'free' | 'tour' | 'balloon' | 'arrival' | 'departure';
+  /** Güne atanmış tur (day_type === 'tour' iken dolu) */
+  assigned_tour?: AssignedTour;
+  /** Güne atanmış balon (day_type === 'balloon' iken dolu) */
+  assigned_balloon?: AssignedBalloon;
+  /** Serbest slotlara kullanıcının eklediği yerler (akşam aktiviteleri vb.) */
   items: Place[];
   total_distance?: string;
   total_duration?: string;
