@@ -5,6 +5,7 @@
 import LandingPage from './pages/LandingPage';
 import PlannerPage from './pages/PlannerPage';
 import TripDetailsPage from './pages/TripDetailsPage';
+import TripPreviewPage from './pages/TripPreviewPage';
 import AccountPage from './pages/AccountPage';
 import ExplorePage from './pages/ExplorePage';
 import LoginPage from './pages/LoginPage';
@@ -94,6 +95,11 @@ const routes: RouteConfig[] = [
     name: 'Trip Details',
     path: '/trip/:id',
     element: <TripDetailsPage />
+  },
+  {
+    name: 'Trip Preview',
+    path: '/trip/preview',
+    element: <TripPreviewPage />
   },
   // ═══ KULLANICI ═══
   {
