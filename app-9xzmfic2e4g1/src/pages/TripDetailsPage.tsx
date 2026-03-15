@@ -234,19 +234,48 @@ export default function TripDetailsPage() {
   const handleAddPlace = useCallback((dayIndex: number, place: Place) => {
     withDays(days => {
       const day = days[dayIndex];
-      const last = day.items[day.items.length - 1];
-      let startMin = 9 * 60;
-      if (last) {
-        const [h, m] = (last.start_time || '09:00').split(':').map(Number);
-        startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
-      }
       const toHHMM = (mins: number) =>
         `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-      const newPlace = { ...place, start_time: toHHMM(startMin), end_time: toHHMM(startMin + (place.estimated_duration_minutes || 60)) };
+
+      const agencyType = place.agency_service?.type;
+      let startTime = place.start_time || '09:00';
+      let endTime   = place.end_time   || '10:00';
+
+      if (!agencyType) {
+        // Serbest yer → son öğeden sonraya koy
+        const last = day.items[day.items.length - 1];
+        let startMin = 9 * 60;
+        if (last) {
+          const [h, m] = (last.start_time || '09:00').split(':').map(Number);
+          startMin = h * 60 + m + (last.estimated_duration_minutes || 60) + 20;
+        }
+        startTime = toHHMM(startMin);
+        endTime   = toHHMM(startMin + (place.estimated_duration_minutes || 60));
+      } else if (agencyType === 'balloon') {
+        startTime = '05:30';
+        const dur = place.estimated_duration_minutes || 90;
+        endTime   = toHHMM(5 * 60 + 30 + dur);
+      } else if (agencyType === 'tour') {
+        startTime = place.start_time || '09:00';
+        const [sh, sm] = startTime.split(':').map(Number);
+        endTime   = toHHMM(sh * 60 + sm + (place.estimated_duration_minutes || 480));
+      } else if (agencyType === 'activity') {
+        startTime = place.start_time || '10:00';
+        const [sh, sm] = startTime.split(':').map(Number);
+        endTime   = toHHMM(sh * 60 + sm + (place.estimated_duration_minutes || 120));
+      }
+
+      const newPlace = { ...place, start_time: startTime, end_time: endTime };
       days[dayIndex] = { ...day, items: [...day.items, newPlace] };
       return days;
     });
-    toast.success(`${place.name} rotaya eklendi`);
+
+    const agencyType = place.agency_service?.type;
+    if (agencyType === 'balloon') {
+      toast.success(`${place.name} eklendi`, { description: '⏰ 05:30 kalkış! Bir gece önce hazırlık yapın.' });
+    } else {
+      toast.success(`${place.name} rotaya eklendi`);
+    }
   }, [withDays]);
 
   const handleDeletePlace = useCallback((dayIndex: number, placeId: string) => {
