@@ -7,7 +7,16 @@ interface RouteGuardProps {
 }
 
 // Please add the pages that can be accessed without logging in to PUBLIC_ROUTES.
-const PUBLIC_ROUTES = ['/login', '/403', '/404', '/', '/explore', '/planner', '/rehberler', '/rehber/*'];
+const PUBLIC_ROUTES = [
+  '/login', '/403', '/404', '/',
+  '/explore', '/planner',
+  '/rehberler', '/rehber/*',
+  '/turlar', '/tur/*',
+  '/balon', '/balon/*',
+  '/aktiviteler', '/aktivite/*',
+  '/trip/preview',
+  '/teklif', '/teklif/onay',
+];
 
 function matchPublicRoute(path: string, patterns: string[]) {
   return patterns.some(pattern => {
